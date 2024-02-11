@@ -52,7 +52,7 @@ class mainScreen():
 
 	def default(self, root):
 		# define the Main Screen title
-		title = 'OpenStruct - Open Source Structural Analysis'
+		title = 'OpenSTRAN - Open Source Structural Analysis'
 
 		# define the path to icon assets
 		icon = os.path.join(os.path.dirname(__file__), 'projectFiles', 'Icons', '3DFrame.ico')

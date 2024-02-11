@@ -44,3 +44,8 @@ simpleBeam.loads.addPointLoad(M1, direction='Y', D=-10, location=50)
 
 simpleBeam.plot()
 ```
+![](Images/simpleBeam.png)
+![](Images/Reactions.png)
+![](Images/ShearDiagram.png)
+![](Images/MomentDiagram.png)
+![](Images/Deflection.png)
