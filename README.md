@@ -1,11 +1,23 @@
 # OpenSTRAN
-# Version 0.0.4 - Alpha Release
 
 Open Source Structural Analysis in Python
+
+* Version 0.0.4 - Alpha Release
 
 ## Installation
 ```
 $ pip install OpenSTRAN
+```
+
+## Dependencies
+
+OpenSTRAN depends on the following packages:
+* matplotlib - used for input/output visualization.
+* numpy - used for vector and matrix mathematical operations.
+
+It is recommended to install these dependencies which may be done using the following command.
+```
+pip install matplotlib
 ```
 
 ## Capabilities
