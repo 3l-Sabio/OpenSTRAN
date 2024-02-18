@@ -8,7 +8,6 @@ class Model():
 		self.plotter = mainScreen(self)
 
 	def plot(self):
-		#self.plotter.plotFrame.bind('<Configure>', mainScreen.on_resize)
 		self.plotter.root.mainloop()
 
 class Nodes():
