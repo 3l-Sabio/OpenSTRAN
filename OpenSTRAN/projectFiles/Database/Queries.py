@@ -3,7 +3,7 @@ import sqlite3
 
 class QuerySteelDb():
 	def __init__(self):
-		self.path = os.path.join(os.getcwd(),'Steel_Sections.db')
+		self.path = os.path.join(os.path.dirname(__file__),'Steel_Sections.db')
 		self.table = 'AISC_SSDB_V15'
 		self.headers = [
 		'Type', 'EDI_Std_Nomenclature', 'AISC_Manual_Label', 'T_F', 'W', 'A', 'd', 'ddet',
@@ -79,5 +79,5 @@ class QuerySteelDb():
 		self.sql_select_query = """SELECT AIC_Manual_Label FROM {Table} WHERE Type = ? AND AISC_Manual_Label LIKE ?""".format(Table=self.table)
 		self.cursor.execute(self.sql_select_query, (Type,), ('%'+Label+'%',))
 		self.records = self.cursor.fetchall()
-		return(self.ReturnRectords(self.records, 'Get_Shapes'))
+		return(self.ReturnRecords(self.records, 'Get_Shapes'))
 		self.Disconnect()
