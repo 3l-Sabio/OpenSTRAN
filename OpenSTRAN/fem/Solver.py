@@ -104,7 +104,7 @@ class Solver():
 		# solve for unknown displacements
 		reducedForceVector = np.delete(self.forceVector, self.restrainedDoF, 0)
 
-		U = self.Ks.I*reducedForceVector
+		U = np.linalg.solve(self.Ks, reducedForceVector)
 		self.UG = np.zeros([self.nDoF,1])
 		index = 0
 		for i in range(self.nDoF):
