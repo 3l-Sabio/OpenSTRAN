@@ -22,7 +22,7 @@ $ pip install matplotlib
 
 ## Capabilities
 
-OpenStruct allows for the creation of simple two-dimensional frame elements and complex three-dimensional structures alike.
+OpenSTRAN allows for the creation of simple two-dimensional frame elements and complex three-dimensional structures alike.
 
 * 2D truss :heavy_check_mark:
 * 3D truss :heavy_check_mark:
