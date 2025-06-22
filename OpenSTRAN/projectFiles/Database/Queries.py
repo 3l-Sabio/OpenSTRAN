@@ -3,7 +3,7 @@ import sqlite3
 
 class QuerySteelDb():
 	def __init__(self):
-		self.path = os.path.join('projectFiles','Database','Steel_Sections.db')
+		self.path = os.path.join(os.getcwd(),'Steel_Sections.db')
 		self.table = 'AISC_SSDB_V15'
 		self.headers = [
 		'Type', 'EDI_Std_Nomenclature', 'AISC_Manual_Label', 'T_F', 'W', 'A', 'd', 'ddet',
