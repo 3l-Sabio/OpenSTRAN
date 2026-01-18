@@ -1,347 +1,179 @@
-from .mainScreen import mainScreen
+import numpy as np
+
+from .Nodes import Nodes
+from .Members import Members
+from .Solver import Solver
+
 
 class Model():
-	def __init__(self):
-		self.nodes = Nodes()
-		self.members = Members()
-		self.loads = Loads()
-		self.plotter = mainScreen(self)
+    """
+    3D Space Frame Model
 
-	def plot(self):
-		self.plotter.root.mainloop()
+    The model neglects deformations due to transverse shear stresses
+    and torsional warping. The model does not account for such
+    deformations under the premise that torsional effects are generally
+    negligible in typical civil engineering practice.
 
-class Nodes():
-	def __init__(self):
-		self.nodes = {}
-		self.count = 0
+    OPTIONAL PARAMETERS:
+    plane = 'xy' - defines a model constrained to the X-Y plane
+    plane = 'yz' - defines a model constrained to the Y-Z plane
+    plane = 'xz' - defines a model constrained to the X-Z plane
 
-	def addNode(self, x, y, z, label):
-		self.count += 1
-		self.nodes[self.count] = Node(x, y, z, label)
-		return(self.nodes[self.count])
+    no definition of a plane indicates the model is not restrained to a
+    two-dimensional plane.
 
-	def removeNode(self, node):
-		for i, n in self.nodes.items():
-			if n == node:
-				break
-			else:
-				continue
+    USAGE:
 
-		self.nodes.pop(i)
+    import OpenStruct
+    2Dframe = OpenStruct.Model(plane='xy')
+    3Dframe = OpenStruct.Model()
+    """
 
-	def returnNode(self, label):
-		for node in self.nodes.values():
-			if node.label == label:
-				return(node)
-			else:
-				continue
+    def __init__(self, plane=None):
+        self.nodes = Nodes(plane)
+        self.members = Members(self.nodes)
+        self.solver = Solver()
 
-class Node():
-	def __init__(self, x, y, z, label):
-		self.x = x
-		self.y = y
-		self.z = z
-		self.label = label
-		self.restraint = [0,0,0,0,0,0]
+    def solve(self):
+        self.solver.solve(self.nodes, self.members)
+        self.maxReactions()
+        self.maxMbrForces()
 
-	def update(self, x, y, z):
-		self.x = x
-		self.y = y
-		self.z = z
+    def maxReactions(self):
+        Rx = []
+        Ry = []
+        Rz = []
+        Rmx = []
+        Rmy = []
+        Rmz = []
 
-class Members():
-	def __init__(self):
-		self.members = {}
-		self.count = 0
+        for node in self.nodes.nodes.values():
+            if node.meshNode != False:
+                Rx.append(node.Rx)
+                Ry.append(node.Ry)
+                Rz.append(node.Rz)
+                Rmx.append(node.Rmx)
+                Rmy.append(node.Rmy)
+                Rmz.append(node.Rmz)
 
-	def addMember(
-		self,
-		node_i,
-		node_j,
-		shape = None,
-		i_release = None,
-		j_release = None,
-		E = None,
-		Ixx = None,
-		Iyy = None,
-		A = None,
-		G = None,
-		J = None,
-		mesh = None,
-		bracing = None,
-		label = None
-		):
+        self.Rx_max = abs(max(Rx, key=lambda x: abs(x)))
+        self.Ry_max = abs(max(Ry, key=lambda x: abs(x)))
+        self.Rz_max = abs(max(Rz, key=lambda x: abs(x)))
+        self.Rmx_max = abs(max(Rmx, key=lambda x: abs(x)))
+        self.Rmy_max = abs(max(Rmy, key=lambda x: abs(x)))
+        self.Rmz_max = abs(max(Rmz, key=lambda x: abs(x)))
 
-		self.count += 1
-		member = Member(
-			node_i = node_i,
-			node_j = node_j,
-			shape = shape,
-			i_release = i_release,
-			j_release = j_release,
-			E = E,
-			Ixx = Ixx,
-			Iyy = Iyy,
-			A = A,
-			G = G,
-			J = J,
-			mesh = mesh,
-			bracing = bracing,
-			label = str('M{i}'.format(i=self.count))
-		)
-		self.members[self.count] = member
-		return(member)
+    def maxMbrForces(self):
+        axial = []
+        torque = []
+        Vy = []
+        Vz = []
+        Mzz = []
+        Myy = []
 
-	def removeMember(self, member):
-		for n, mbr in self.members.items():
-			if member == mbr:
-				break
-		self.members.pop(n)
+        for mbr in self.members.members.values():
+            for submbr in mbr.submembers.values():
+                axial.append(submbr.results['axial'][0])
+                axial.append(submbr.results['axial'][1]*-1)
+                torque.append(submbr.results['torsional moments'][0])
+                torque.append(submbr.results['torsional moments'][1]*-1)
+                Vy.append(submbr.results['shear'][0])
+                Vy.append(submbr.results['shear'][1]*-1)
+                Vz.append(submbr.results['transverse shear'][0])
+                Vz.append(submbr.results['transverse shear'][1]*-1)
+                Mzz.append(submbr.results['major axis moments'][0])
+                Mzz.append(submbr.results['major axis moments'][1]*-1)
+                Myy.append(submbr.results['minor axis moments'][0])
+                Myy.append(submbr.results['minor axis moments'][1]*-1)
 
-	def getLabel(self, member):
-		for n, mbr in self.members.items():
-			if member == mbr:
-				return(n)
+        self.axial_max = abs(max(axial, key=lambda x: abs(x)))
+        self.axial_maxima = self.localMaxima(axial)
+        self.axial_minima = self.localMinima(axial)
 
-class Member():
-	def __init__(
-		self,
-		node_i,
-		node_j,
-		shape = None,
-		i_release = None,
-		j_release = None,
-		E = None,
-		Ixx = None,
-		Iyy = None,
-		A = None,
-		G = None,
-		J = None,
-		mesh = None,
-		bracing = None,
-		label = None
-		):
+        self.torque_max = abs(max(torque, key=lambda x: abs(x)))
+        self.torque_maxima = self.localMaxima(torque)
+        self.torque_minima = self.localMinima(torque)
 
-		self.node_i = node_i
-		self.node_j = node_j
-		self.i_release = False if i_release == None else i_release
-		self.j_release = False if j_release == None else j_release
-		self.shape = 'W12X14' if shape == None else shape
-		self.E = 29000 if E == None else E	
-		self.Izz = 88.6 if Ixx == None else Ixx
-		self.Iyy = 2.36 if Iyy == None else Iyy
-		self.A = 4.16 if A == None else A
-		self.G = 12000 if G == None else G
-		self.J = 0.0704 if J == None else J
-		self.mesh = 50 if mesh == None else mesh
-		self.bracing = 'continuous' if bracing == None else bracing
-		self.label = None if label == None else label
+        self.Vy_max = abs(max(Vy, key=lambda x: abs(x)))
+        self.Vy_maxima = self.localMaxima(Vy)
+        self.Vy_minima = self.localMinima(Vy)
 
-class Loads():
-	def __init__(self):
-		self.pointLoads = {}
-		self.pointLoadCount = 0
-		self.distLoads = {}
-		self.distLoadCount = 0
+        self.Vz_max = abs(max(Vz, key=lambda x: abs(x)))
+        self.Vz_maxima = self.localMaxima(Vz)
+        self.Vz_minima = self.localMinima(Vz)
 
-	def addPointLoad(
-			self,
-			mbr,
-			direction,
-			D=0,
-			L=0,
-			S=0,
-			Lr=0,
-			R=0,
-			W=0,
-			E=0,
-			location=0
-		):
-		self.pointLoadCount += 1
-		pointLoad = PointLoad(mbr, direction, D, L, S, Lr, R, W, E, location)
-		self.pointLoads[self.pointLoadCount] = pointLoad
+        self.Mzz_max = abs(max(Mzz, key=lambda x: abs(x)))
+        self.Mzz_maxima = self.localMaxima(Mzz)
+        self.Mzz_minima = self.localMinima(Mzz)
 
-	def removePointLoad(self, load):
-		for i, pointLoad in self.pointLoads.items():
-			if pointLoad == load:
-				break
-			else:
-				continue
+        self.Myy_max = abs(max(Myy, key=lambda x: abs(x)))
+        self.Myy_maxima = self.localMaxima(Myy)
+        self.Myy_minima = self.localMinima(Myy)
 
-		self.pointLoads.pop(i)
+    def localMaxima(self, forces):
+        maxima = [False for force in forces]
+        length = len(forces)-1
+        for i, force in enumerate(forces):
+            if i == 0:
+                if force > 0:
+                    maxima[i] = True
+            if i % 2 == 0 or i == 1:
+                continue
+            elif i == length:
+                if force > 0:
+                    maxima[i] = True
+            else:
+                if forces[i-2] > force:
+                    continue
+                if np.isclose(forces[i-2], force) and np.isclose(forces[i+2], force):
+                    continue
+                if np.isclose(forces[i-2], force) and forces[i+2] < force:
+                    maxima[i] = True
+                    continue
+                if forces[i-2] < force and forces[i+2] < force:
+                    maxima[i] = True
+                    continue
+                if forces[i-2] < force and np.isclose(forces[i+2], force):
+                    maxima[i] = True
+                    continue
+        return (maxima)
 
-	def addDistLoad(self, mbr, direction, D, L, S, Lr, R, W, E, location):
-		self.distLoadCount += 1
-		distLoad = DistLoad(mbr, direction, D, L, S, Lr, R, W, E, location)
-		self.distLoads[self.distLoadCount] = distLoad
+    def localMinima(self, forces):
+        minima = [False for force in forces]
+        length = len(forces)-1
+        for i, force in enumerate(forces):
+            if i == 0:
+                if force < 0:
+                    minima[i] = True
+            if i % 2 == 0 or i == 1:
+                continue
+            elif i == length:
+                if force < 0:
+                    minima[i] = True
+            else:
+                if forces[i-2] < force:
+                    continue
+                if np.isclose(forces[i-2], force) and np.isclose(forces[i+2], force):
+                    continue
+                if np.isclose(forces[i-2], force) and forces[i+2] > force:
+                    minima[i] = True
+                    continue
+                if forces[i-2] > force and np.isclose(forces[i+2], force):
+                    minima[i] = True
+                    continue
+                if forces[i-2] > force and forces[i+2] > force:
+                    minima[i] = True
+                    continue
+        return (minima)
 
-	def removeDistLoad(self, load):
-		for i, distLoad in self.distLoads.items():
-			if distLoad == load:
-				break
-			else:
-				continue
-
-		self.distLoads.pop(i)
-
-class DistLoad():
-	def __init__(self, mbr, direction, D, L, S, Lr, R, W, E, location):
-		self.member = mbr
-		self.direction = direction
-		self.D = (float(D[:D.index(';')]),float(D[D.index(';')+1:]))
-		self.L = (float(L[:L.index(';')]),float(L[L.index(';')+1:]))
-		self.S = (float(S[:S.index(';')]),float(S[S.index(';')+1:]))
-		self.Lr = (float(Lr[:Lr.index(';')]),float(Lr[Lr.index(';')+1:]))
-		self.R = (float(R[:R.index(';')]),float(R[R.index(';')+1:]))
-		self.W = (float(W[:W.index(';')]),float(W[W.index(';')+1:]))
-		self.E = (float(E[:E.index(';')]),float(E[E.index(';')+1:]))
-		self.location = (float(location[:location.index(';')]),float(location[location.index(';')+1:]))
-		
-	def calculateASD(self):
-		self.ASD_S = ASD(self.D[0], self.L[0], self.S[0], self.Lr[0], self.R[0], self.W[0], self.E[0])
-		self.ASD_E = ASD(self.D[1], self.L[1], self.S[1], self.Lr[1], self.R[1], self.W[1], self.E[1])
-
-		self.loadCombinations_S = {
-			'Dead Load Only (D)':self.D[0],
-			'Live Load Only (L)':self.L[0],
-			'Roof Live Load Only (Lr)':self.Lr[0],
-			'Snow Load Only (S)':self.S[0],
-			'Rain Load Only (R)':self.R[0],
-			'Wind Load Only (W)':self.W[0],
-			'Earthquake Load Only (E)':self.E[0],
-			'ASD 2-4a D':self.ASD_S.loadCase['1'],
-			'ASD 2-4b D + L':self.ASD_S.loadCase['2'],
-			'ASD 2-4c D + (Lr or S or R)':self.ASD_S.loadCase['3'],
-			'ASD 2-4d D + 0.75L + 0.75(Lr or S or R)':self.ASD_S.loadCase['4'],
-			'ASD 2-4e D + 0.6W or 0.7E':self.ASD_S.loadCase['5'],
-			'ASD 2-4f D + 0.75L + 0.75(0.6W) + 0.75(Lr or S or R)':self.ASD_S.loadCase['6a'],
-			'ASD 2-4g D + 0.75L + 0.75(0.6E) + 0.75S':self.ASD_S.loadCase['6b'],
-			'ASD 2-4h 0.6D + 0.6W':self.ASD_S.loadCase['8'],
-			'ASD 2-4i 0.6D + 0.7E':self.ASD_S.loadCase['9']
-		}
-
-		self.loadCombinations_E = {
-			'Dead Load Only (D)':self.D[1],
-			'Live Load Only (L)':self.L[1],
-			'Roof Live Load Only (Lr)':self.Lr[1],
-			'Snow Load Only (S)':self.S[1],
-			'Rain Load Only (R)':self.R[1],
-			'Wind Load Only (W)':self.W[1],
-			'Earthquake Load Only (E)':self.E[1],
-			'ASD 2-4a D':self.ASD_E.loadCase['1'],
-			'ASD 2-4b D + L':self.ASD_E.loadCase['2'],
-			'ASD 2-4c D + (Lr or S or R)':self.ASD_E.loadCase['3'],
-			'ASD 2-4d D + 0.75L + 0.75(Lr or S or R)':self.ASD_E.loadCase['4'],
-			'ASD 2-4e D + 0.6W or 0.7E':self.ASD_E.loadCase['5'],
-			'ASD 2-4f D + 0.75L + 0.75(0.6W) + 0.75(Lr or S or R)':self.ASD_E.loadCase['6a'],
-			'ASD 2-4g D + 0.75L + 0.75(0.6E) + 0.75S':self.ASD_E.loadCase['6b'],
-			'ASD 2-4h 0.6D + 0.6W':self.ASD_E.loadCase['8'],
-			'ASD 2-4i 0.6D + 0.7E':self.ASD_E.loadCase['9']
-		}
-
-class PointLoad():
-	def __init__(self, mbr, direction, D, L, S, Lr, R, W, E, location):
-		self.member = mbr
-		self.direction = direction
-		self.D = float(D)
-		self.L = float(L)
-		self.S = float(S)
-		self.Lr = float(Lr)
-		self.R = float(R)
-		self.W = float(W)
-		self.E = float(E)
-		self.location = location
-		self.LRFD = {}
-
-	def calculateASD(self):
-		self.ASD = ASD(self.D, self.L, self.S, self.Lr, self.R, self.W, self.E)
-
-		self.loadCombinations = {
-			'Dead Load Only (D)':self.D,
-			'Live Load Only (L)':self.L,
-			'Roof Live Load Only (Lr)':self.Lr,
-			'Snow Load Only (S)':self.S,
-			'Rain Load Only (R)':self.R,
-			'Wind Load Only (W)':self.W,
-			'Earthquake Load Only (E)':self.E,
-			'ASD 2-4a D':self.ASD.loadCase['1'],
-			'ASD 2-4b D + L':self.ASD.loadCase['2'],
-			'ASD 2-4c D + (Lr or S or R)':self.ASD.loadCase['3'],
-			'ASD 2-4d D + 0.75L + 0.75(Lr or S or R)':self.ASD.loadCase['4'],
-			'ASD 2-4e D + 0.6W or 0.7E':self.ASD.loadCase['5'],
-			'ASD 2-4f D + 0.75L + 0.75(0.6W) + 0.75(Lr or S or R)':self.ASD.loadCase['6a'],
-			'ASD 2-4g D + 0.75L + 0.75(0.6E) + 0.75S':self.ASD.loadCase['6b'],
-			'ASD 2-4h 0.6D + 0.6W':self.ASD.loadCase['8'],
-			'ASD 2-4i 0.6D + 0.7E':self.ASD.loadCase['9']
-		}
-
-class ASD():
-	def __init__(self, D, L, S, Lr, R, W, E):
-		self.loadCase = {}
-
-		self.loadCase['1'] = self.ASD_2_4a(D)
-		self.loadCase['2'] = self.ASD_2_4b(D, L)
-		self.loadCase['3'] = self.ASD_2_4c(D, Lr, S, R)
-		self.loadCase['4'] = self.ASD_2_4d(D, L, Lr, S, R)
-		self.loadCase['5'] = self.ASD_2_4e(D, W, E)
-		self.loadCase['6a'] = self.ASD_2_4f(D, L, Lr, S, R, W)
-		self.loadCase['6b'] = self.ASD_2_4g(D, L, S, E)
-		self.loadCase['8'] = self.ASD_2_4h(D, W)
-		self.loadCase['9'] = self.ASD_2_4i(D, E)
-		self.loadCase['Envelope'] = self.Envelope()
-
-	def ASD_2_4a(self, D):
-		return(D)
-
-	def ASD_2_4b(self, D, L):
-		return(D + L)
-
-	def ASD_2_4c(self, D, Lr, S, R):
-		loads = []
-		loads.append(D + Lr)
-		loads.append(D + S)
-		loads.append(D + R)
-
-		return(max(loads, key=lambda x: abs(x)))
-
-	def ASD_2_4d(self, D, L, Lr, S, R):
-		loads = []
-		loads.append(D + 0.75*L + 0.75*Lr)
-		loads.append(D + 0.75*L + 0.75*S)
-		loads.append(D + 0.75*L + 0.75*R)
-
-		return(max(loads, key=lambda x: abs(x)))
-
-	def ASD_2_4e(self, D, W, E):
-		loads = []
-		loads.append(D + 0.6*W)
-		loads.append(D + 0.7*E)
-
-		return(max(loads, key=lambda x: abs(x)))
-
-	def ASD_2_4f(self, D, L, Lr, S, R, W):
-		loads = []
-		loads.append(D + 0.75*L + 0.75*0.6*W + 0.75*Lr)
-		loads.append(D + 0.75*L + 0.75*0.6*W + 0.75*S)
-		loads.append(D + 0.75*L + 0.75*0.6*W + 0.75*R)
-
-		return(max(loads, key=lambda x: abs(x)))
-
-	def ASD_2_4g(self, D, L, S, E):
-		return(D + 0.75*L + 0.75*0.6*E + 0.75*S)
-
-	def ASD_2_4h(self, D, W):
-		return(0.6*D + 0.6*W)
-
-	def ASD_2_4i(self, D, E):
-		return(0.6*D + 0.7*E)
-
-	def Envelope(self):
-		loads = []
-		for case, load in self.loadCase.items():
-			if case == 'Envelope':
-				continue
-			else:
-				loads.append(load)
-
-		return(max(loads,key=lambda x: abs(x)))
+    def reactions(self):
+        print('Nodal Reactions')
+        for node in self.nodes.nodes.values():
+            if node.meshNode != True:
+                print(f'\tNode {node.nodeID}:')
+                print(f'\t\tRx = {node.Rx:.2f} kips')
+                print(f'\t\tRy = {node.Ry:.2f} kips')
+                print(f'\t\tRz = {node.Rz:.2f} kips')
+                print(f'\t\tMx = {node.Mx:.2f} kip-ft')
+                print(f'\t\tMy = {node.My:.2f} kip-ft')
+                print(f'\t\tMz = {node.Mz:.2f} kip-ft')

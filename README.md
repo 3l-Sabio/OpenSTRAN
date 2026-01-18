@@ -1,8 +1,16 @@
 # OpenSTRAN
 
+[![PyPI version](https://img.shields.io/pypi/v/OpenSTRAN.svg)](https://pypi.org/project/OpenSTRAN)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/OpenSTRAN.svg)]()
+[![PyPI monthly downloads](https://img.shields.io/pypi/dm/OpenSTRAN.svg)](https://pypi.org/project/OpenSTRAN/)
+[![Downloads (pepy)](https://pepy.tech/badge/OpenSTRAN)](https://pepy.tech/project/OpenSTRAN)
+
+
+
 Open-Source Structural Analysis with Python
 
-* Version 0.0.4 - Alpha Release
+* Version 0.0.5 - Alpha Release
 
 ## Installation
 ```
@@ -12,12 +20,11 @@ $ pip install OpenSTRAN
 ## Dependencies
 
 OpenSTRAN depends on the following packages:
-* matplotlib - used for input/output visualization.
-* numpy - used for vector and matrix mathematical operations.
+* <a href="https://numpy.org/">numpy</a> - used for vector and matrix mathematical operations.
 
 It is recommended to install these dependencies which may be done using the following command.
 ```
-$ pip install matplotlib
+pip install numpy
 ```
 
 ## Capabilities
@@ -28,7 +35,6 @@ OpenSTRAN allows for the creation of simple two-dimensional frame elements and c
 * 3D truss :heavy_check_mark:
 * 2D frame :heavy_check_mark:
 * 3D space frame :heavy_check_mark:
-* Graphical User Interface :heavy_check_mark:
 
 ## Limitations
 * First order elastic analysis only.
@@ -36,7 +42,15 @@ OpenSTRAN allows for the creation of simple two-dimensional frame elements and c
 * Does not take advantage of matrix sparseness or bandedness.
 * Supports Imperial units only.
 
-Second order analysis methods, solution time optimization, support for metric units and much more is currently under development. OpenSTRAN is in the early stages of development and is continuously being improved.
+## What happened to the UI?
+The graphical user interface that was programmed in tkinter and relied on matplotlib as a backend has been removed and is no longer being maintained or further developed.
+
+Instead, focus has been shifted to improving the core library, developing documentation, and standardizing output in the <a href="https://vtk.org/">VTK</a> legacy format so that solutions can be visualized using open source post processing visualization tools such as <a href="https://www.paraview.org/">ParaView</a>.
+
+ The UI was last available in <a href="https://pypi.org/project/OpenSTRAN/0.0.4/">Version 0.0.4</a> and can be installed with the following command.
+```bash
+pip install OpenSTRAN==0.0.4
+```
 
 ## Get Involved
 
@@ -76,12 +90,4 @@ M1 = simpleBeam.members.addMember(N1, N2) # (i node, j node)
 
 # add a dead load of -10 kips in the global Y direction 50% along M1's span.
 simpleBeam.loads.addPointLoad(M1, direction='Y', D=-10, location=50)
-
-# display the model within an interactive graphical user interface.
-simpleBeam.plot()
 ```
-![](Images/simpleBeam.png)
-![](Images/Reactions.png)
-![](Images/ShearDiagram.png)
-![](Images/MomentDiagram.png)
-![](Images/Deflection.png)
