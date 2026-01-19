@@ -1,10 +1,12 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 
 from .Coordinates import Coordinate
 from .Node import Node
 
+from typing import Any
 
-@dataclass
+
+@dataclass(slots=True)
 class Nodes():
     """
     A container class for managing user-defined node objects in the structural model.
@@ -23,6 +25,9 @@ class Nodes():
     x: list[float] = field(default_factory=list[float])
     y: list[float] = field(default_factory=list[float])
     z: list[float] = field(default_factory=list[float])
+
+    def properties(self) -> dict[str, Any]:
+        return asdict(self)
 
     def addNode(self, x: float, y: float, z: float, mesh_node: bool = False) -> Node:
         """

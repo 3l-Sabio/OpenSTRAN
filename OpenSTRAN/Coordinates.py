@@ -1,8 +1,11 @@
 from numpy import array
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass, field, asdict
+
+from typing import Self, Any
 
 
-@dataclass
+@dataclass(slots=True)
 class Coordinate():
     """
     A class representing a 3D coordinate in space.
@@ -26,3 +29,13 @@ class Coordinate():
         """
         self.coordinates = (self.x, self.y, self.z)
         self.vector = array([self.x, self.y, self.z])
+
+    def properties(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_tuple(cls, coordinates: tuple[float, float, float]) -> Self:
+        x = coordinates[0]
+        y = coordinates[1]
+        z = coordinates[2]
+        return cls(x, y, z)

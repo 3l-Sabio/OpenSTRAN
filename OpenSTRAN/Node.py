@@ -1,8 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
+
 from .Coordinates import Coordinate
 
+from typing import Any
 
-@dataclass
+
+@dataclass(slots=True)
 class Node():
     """
     A class representing a node in the structural analysis model.
@@ -80,6 +83,9 @@ class Node():
             self.restraint = [1, 0, 0, 0, 1, 1]
         elif self.plane == 'zx':
             self.restraint = [0, 1, 0, 1, 0, 1]
+
+    def properties(self) -> dict[str, Any]:
+        return asdict(self)
 
     def addRestraint(self, restraint: list[int]) -> None:
         """
