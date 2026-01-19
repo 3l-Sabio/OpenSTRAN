@@ -144,7 +144,7 @@ class Member():
 
     def addMesh(self, nodes, node_i, node_j, mesh, l):
         # instantiate an array to hold the mesh nodes
-        meshNodes = []
+        mesh_nodes = []
         # calculate the x, y and z vector components of the member
         dx = node_j.coordinates.x - node_i.coordinates.x
         dy = node_j.coordinates.y - node_i.coordinates.y
@@ -162,9 +162,9 @@ class Member():
             y = node_i.coordinates.y + scalar*y_unit
             z = node_i.coordinates.z + scalar*z_unit
             # add the mesh coordinates as a node to the model
-            meshNodes.append(nodes.addNode(x, y, z, meshNode=True))
+            mesh_nodes.append(nodes.addNode(x, y, z, mesh_node=True))
         # return a list of the mesh nodes
-        return (meshNodes)
+        return (mesh_nodes)
 
     def addSubMember(
         self,

@@ -48,7 +48,7 @@ class Model():
         Rmz = []
 
         for node in self.nodes.nodes.values():
-            if node.meshNode != False:
+            if node.mesh_node != False:
                 Rx.append(node.Rx)
                 Ry.append(node.Ry)
                 Rz.append(node.Rz)
@@ -169,8 +169,8 @@ class Model():
     def reactions(self):
         print('Nodal Reactions')
         for node in self.nodes.nodes.values():
-            if node.meshNode != True:
-                print(f'\tNode {node.nodeID}:')
+            if node.mesh_node != True:
+                print(f'\tNode {node.node_ID}:')
                 print(f'\t\tRx = {node.Rx:.2f} kips')
                 print(f'\t\tRy = {node.Ry:.2f} kips')
                 print(f'\t\tRz = {node.Rz:.2f} kips')

@@ -32,20 +32,20 @@ class Solver():
                     continue
 
                 elif submbr.i_release == True and submbr.j_release == False:
-                    self.pinDoF.append(submbr.node_i.nodeID*6-1)
-                    self.pinDoF.append(submbr.node_i.nodeID*6)
+                    self.pinDoF.append(submbr.node_i.node_ID*6-1)
+                    self.pinDoF.append(submbr.node_i.node_ID*6)
 
                 elif submbr.i_release == False and submbr.j_release == True:
-                    self.pinDoF.append(submbr.node_j.nodeID*6-1)
-                    self.pinDoF.append(submbr.node_j.nodeID*6)
+                    self.pinDoF.append(submbr.node_j.node_ID*6-1)
+                    self.pinDoF.append(submbr.node_j.node_ID*6)
 
                 elif submbr.i_release == True and submbr.j_release == True:
-                    self.pinDoF.append(submbr.node_i.nodeID*6-2)
-                    self.pinDoF.append(submbr.node_i.nodeID*6-1)
-                    self.pinDoF.append(submbr.node_i.nodeID*6)
-                    self.pinDoF.append(submbr.node_j.nodeID*6-2)
-                    self.pinDoF.append(submbr.node_j.nodeID*6-1)
-                    self.pinDoF.append(submbr.node_j.nodeID*6)
+                    self.pinDoF.append(submbr.node_i.node_ID*6-2)
+                    self.pinDoF.append(submbr.node_i.node_ID*6-1)
+                    self.pinDoF.append(submbr.node_i.node_ID*6)
+                    self.pinDoF.append(submbr.node_j.node_ID*6-2)
+                    self.pinDoF.append(submbr.node_j.node_ID*6-1)
+                    self.pinDoF.append(submbr.node_j.node_ID*6)
 
         # remove duplicates from the rotational restrained degrees of
         # freedom. Duplicates may exist because a user could potentially
@@ -88,12 +88,12 @@ class Solver():
         # construct the 'Primary Stiffness Matrix' for the structure
         for mbr in members.members.values():
             for submbr in mbr.submembers.values():
-                nodeID_i = submbr.node_i.nodeID
-                nodeID_j = submbr.node_j.nodeID
+                node_ID_i = submbr.node_i.node_ID
+                node_ID_j = submbr.node_j.node_ID
                 i_release = submbr.i_release
                 j_release = submbr.j_release
                 KG = submbr.KG
-                self.AddMemberToKp(nodeID_i, nodeID_j,
+                self.AddMemberToKp(node_ID_i, node_ID_j,
                                    i_release, j_release, KG)
 
         # 'Impose' the influence of supports to produce the
@@ -122,10 +122,10 @@ class Solver():
         for mbr in members.members.values():
             for submbr in mbr.submembers.values():
                 if submbr.i_release == False and submbr.j_release == False:
-                    ia = submbr.node_i.nodeID*6-6
-                    ib = submbr.node_i.nodeID*6-1
-                    ja = submbr.node_j.nodeID*6-6
-                    jb = submbr.node_j.nodeID*6-1
+                    ia = submbr.node_i.node_ID*6-6
+                    ib = submbr.node_i.node_ID*6-1
+                    ja = submbr.node_j.node_ID*6-6
+                    jb = submbr.node_j.node_ID*6-1
 
                     mbrDisplacements = np.array([
                         self.UG[ia, 0],
@@ -158,10 +158,10 @@ class Solver():
                         forces[5], forces[11]]
 
                 elif submbr.i_release == True and submbr.j_release == False:
-                    ia = submbr.node_i.nodeID*6-6
-                    ib = submbr.node_i.nodeID*6-3
-                    ja = submbr.node_j.nodeID*6-6
-                    jb = submbr.node_j.nodeID*6-1
+                    ia = submbr.node_i.node_ID*6-6
+                    ib = submbr.node_i.node_ID*6-3
+                    ja = submbr.node_j.node_ID*6-6
+                    jb = submbr.node_j.node_ID*6-1
 
                     mbrDisplacements = np.array([
                         self.UG[ia, 0],
@@ -190,10 +190,10 @@ class Solver():
                     submbr.results['minor axis moments'] = [0, forces[9]]
 
                 elif submbr.i_release == False and submbr.j_release == True:
-                    ia = submbr.node_i.nodeID*6-6
-                    ib = submbr.node_i.nodeID*6-1
-                    ja = submbr.node_j.nodeID*6-6
-                    jb = submbr.node_j.nodeID*6-3
+                    ia = submbr.node_i.node_ID*6-6
+                    ib = submbr.node_i.node_ID*6-1
+                    ja = submbr.node_j.node_ID*6-6
+                    jb = submbr.node_j.node_ID*6-3
 
                     mbrDisplacements = np.array([
                         self.UG[ia, 0],
@@ -222,10 +222,10 @@ class Solver():
                     submbr.results['minor axis moments'] = [forces[5], 0]
 
                 elif submbr.i_release == True and submbr.j_release == True:
-                    ia = submbr.node_i.nodeID*6-6
-                    ib = submbr.node_i.nodeID*6-3
-                    ja = submbr.node_j.nodeID*6-6
-                    jb = submbr.node_j.nodeID*6-3
+                    ia = submbr.node_i.node_ID*6-6
+                    ib = submbr.node_i.node_ID*6-3
+                    ja = submbr.node_j.node_ID*6-6
+                    jb = submbr.node_j.node_ID*6-3
 
                     mbrDisplacements = np.array([
                         self.UG[ia, 0],
@@ -253,10 +253,10 @@ class Solver():
             for n, submbr in mbr.submembers.items():
 
                 # determine DOFs associated with the submember nodes
-                ia = submbr.node_i.nodeID*6-6
-                ib = submbr.node_i.nodeID*6-1
-                ja = submbr.node_j.nodeID*6-6
-                jb = submbr.node_j.nodeID*6-1
+                ia = submbr.node_i.node_ID*6-6
+                ib = submbr.node_i.node_ID*6-1
+                ja = submbr.node_j.node_ID*6-6
+                jb = submbr.node_j.node_ID*6-1
 
                 # remove influence of equivalent nodal actions from
                 # the Global Force Vector
@@ -309,14 +309,14 @@ class Solver():
                     submbr.ENAs['minor axis moments'][1]
 
                 # store nodal reactions
-                if submbr.node_i.meshNode != True:
+                if submbr.node_i.mesh_node != True:
                     submbr.node_i.Rx = self.FG[ia][0]
                     submbr.node_i.Ry = self.FG[ia+1][0]
                     submbr.node_i.Rz = self.FG[ia+2][0]
                     submbr.node_i.Rmx = self.FG[ia+3][0]
                     submbr.node_i.Rmy = self.FG[ia+4][0]
                     submbr.node_i.Rmz = self.FG[ib][0]
-                elif submbr.node_j.meshNode != True:
+                elif submbr.node_j.mesh_node != True:
                     submbr.node_j.Rx = self.FG[ja][0]
                     submbr.node_j.Ry = self.FG[ja+1][0]
                     submbr.node_j.Rz = self.FG[ja+2][0]
@@ -324,7 +324,7 @@ class Solver():
                     submbr.node_j.Rmy = self.FG[ja+4][0]
                     submbr.node_j.Rmz = self.FG[jb][0]
 
-    def AddMemberToKp(self, nodeID_i, nodeID_j, i_release, j_release, KG):
+    def AddMemberToKp(self, node_ID_i, node_ID_j, i_release, j_release, KG):
 
         if i_release == False and j_release == False:
             K11 = KG[0:6, 0:6]
@@ -332,10 +332,10 @@ class Solver():
             K21 = KG[6:12, 0:6]
             K22 = KG[6:12, 6:12]
 
-            ia = 6*nodeID_i-6
-            ib = 6*nodeID_i-1
-            ja = 6*nodeID_j-6
-            jb = 6*nodeID_j-1
+            ia = 6*node_ID_i-6
+            ib = 6*node_ID_i-1
+            ja = 6*node_ID_j-6
+            jb = 6*node_ID_j-1
 
         elif i_release == True and j_release == False:
             K11 = KG[0:4, 0:4]
@@ -343,10 +343,10 @@ class Solver():
             K21 = KG[4:10, 0:4]
             K22 = KG[4:10, 4:10]
 
-            ia = 6*nodeID_i-6
-            ib = 6*nodeID_i-3
-            ja = 6*nodeID_j-6
-            jb = 6*nodeID_j-1
+            ia = 6*node_ID_i-6
+            ib = 6*node_ID_i-3
+            ja = 6*node_ID_j-6
+            jb = 6*node_ID_j-1
 
         elif i_release == False and j_release == True:
             K11 = KG[0:6, 0:6]
@@ -354,10 +354,10 @@ class Solver():
             K21 = KG[6:10, 0:6]
             K22 = KG[6:10, 6:10]
 
-            ia = 6*nodeID_i-6
-            ib = 6*nodeID_i-1
-            ja = 6*nodeID_j-6
-            jb = 6*nodeID_j-3
+            ia = 6*node_ID_i-6
+            ib = 6*node_ID_i-1
+            ja = 6*node_ID_j-6
+            jb = 6*node_ID_j-3
 
         elif i_release == True and j_release == True:
             K11 = KG[0:3, 0:3]
@@ -365,10 +365,10 @@ class Solver():
             K21 = KG[3:6, 0:3]
             K22 = KG[3:6, 3:6]
 
-            ia = 6*nodeID_i-6
-            ib = 6*nodeID_i-4
-            ja = 6*nodeID_j-6
-            jb = 6*nodeID_j-4
+            ia = 6*node_ID_i-6
+            ib = 6*node_ID_i-4
+            ja = 6*node_ID_j-6
+            jb = 6*node_ID_j-4
 
         self.Kp[ia:ib+1, ia:ib+1] = self.Kp[ia:ib+1, ia:ib+1] + K11
         self.Kp[ia:ib+1, ja:jb+1] = self.Kp[ia:ib+1, ja:jb+1] + K12
