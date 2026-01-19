@@ -1,139 +1,100 @@
+from dataclasses import dataclass, field
+from .Coordinates import Coordinate
+
+
+@dataclass
 class Node():
     """
-    3D Space Frame Node Object
+    A class representing a node in the structural analysis model.
 
-    REQUIRED PARAMETERS:
-
-    coordinates:    (x,y,z)
-    nodeID:            Unique Identifier for the Node
-
-    OPTIONAL PARAMETERS:
-
-    meshNode:    True - The node is part of a member mesh
-                False - Standard node
-
-    restraint = [Ux, Uy, Uz, φx, φy, φz], 0 = 'free', 1 = 'locked'
-
-    plane = 'xy' – defines a model constrained to the X-Y plane
-    plane = 'yz' – defines a model constrained to the Y-Z plane
-    plane = 'xz' – defines a model constrained to the X-Z plane
-
-    DEFAULT PARAMETERS:
-
-    Fx:        Force applied to the node along the x-axis    [kips]
-    Fy:        Force applied to the node along the y-axis    [kips]
-    Fz:        Force applied to the node along the z-axis    [kips]
-    Mx:        Moment applied to the node along the x-axis    [kip-ft]
-    My:        Moment applied to the node along the y-axis    [kip-ft]
-    Mz:        Moment applied to the node along the z-axis    [kip-ft]
-    Ux:        Nodal displacement in the x direction        [ft]
-    Uy:        Nodal displacement in the y direction        [ft]
-    Uz:        Nodal displacement in the z direction        [ft]
-    phi_x:    Nodal rotation in the x direction            [rad]
-    phi_y:    Nodal rotation in the y direction            [rad]
-    phi_z:    Nodal rotation in the z direction            [rad]
-    eFx:    Equivalent nodal force along the x-axis        [kips]
-    eFy:    Equivalent nodal force along the y-axis        [kips]
-    eFz:    Equivalent nodal force along the z-axis        [kips]
-    eMx:    Equivalent nodal moment along the x-axis    [kip-ft]
-    eMy:    Equivalent nodal moment along the y-axis    [kip-ft]
-    eMz:    Equivalent nodal moment along the z-axis    [kip-ft]
+    Attributes:
+        coordinates (Coordinate): The coordinate object defining the node's position.
+        node_ID (int): Unique identifier for the node.
+        mesh_node (bool): Indicates if this is a mesh node. Defaults to False.
+        Fx (float): Applied force in the x-direction in kips. Defaults to 0.0.
+        Fy (float): Applied force in the y-direction in kips. Defaults to 0.0.
+        Fz (float): Applied force in the z-direction in kips. Defaults to 0.0.
+        Mx (float): Applied moment about the x-axis in kip-ft. Defaults to 0.0.
+        My (float): Applied moment about the y-axis in kip-ft. Defaults to 0.0.
+        Mz (float): Applied moment about the z-axis in kip-ft. Defaults to 0.0.
+        Ux (float): Displacement in the x-direction in feet. Defaults to 0.0.
+        Uy (float): Displacement in the y-direction in feet. Defaults to 0.0.
+        Uz (float): Displacement in the z-direction in feet. Defaults to 0.0.
+        phi_x (float): Rotation about the x-axis in radians. Defaults to 0.0.
+        phi_y (float): Rotation about the y-axis in radians. Defaults to 0.0.
+        phi_z (float): Rotation about the z-axis in radians. Defaults to 0.0.
+        eFx (float): Effective force in the x-direction in kips. Defaults to 0.0.
+        eFy (float): Effective force in the y-direction in kips. Defaults to 0.0.
+        eFz (float): Effective force in the z-direction in kips. Defaults to 0.0.
+        eMx (float): Effective moment about the x-axis in kip-ft. Defaults to 0.0.
+        eMy (float): Effective moment about the y-axis in kip-ft. Defaults to 0.0.
+        eMz (float): Effective moment about the z-axis in kip-ft. Defaults to 0.0.
+        Rx (float): Reaction force in the x-direction in kips. Defaults to 0.0.
+        Ry (float): Reaction force in the y-direction in kips. Defaults to 0.0.
+        Rz (float): Reaction force in the z-direction in kips. Defaults to 0.0.
+        Rmx (float): Reaction moment about the x-axis in kip-ft. Defaults to 0.0.
+        Rmy (float): Reaction moment about the y-axis in kip-ft. Defaults to 0.0.
+        Rmz (float): Reaction moment about the z-axis in kip-ft. Defaults to 0.0.
+        plane (str | None): The plane associated with the node. Defaults to None.
+        restraint (List[int]): List of 6 integers indicating restrained degrees of freedom [Ux, Uy, Uz, φx, φy, φz]. Defaults to [0, 0, 0, 0, 0, 0].
     """
+    coordinates: Coordinate
+    node_ID: int
+    mesh_node: bool = False
+    Fx: float = 0.0
+    Fy: float = 0.0
+    Fz: float = 0.0
+    Mx: float = 0.0
+    My: float = 0.0
+    Mz: float = 0.0
+    Ux: float = 0.0
+    Uy: float = 0.0
+    Uz: float = 0.0
+    phi_x: float = 0.0
+    phi_y: float = 0.0
+    phi_z: float = 0.0
+    eFx: float = 0.0
+    eFy: float = 0.0
+    eFz: float = 0.0
+    eMx: float = 0.0
+    eMy: float = 0.0
+    eMz: float = 0.0
+    Rx: float = 0.0
+    Ry: float = 0.0
+    Rz: float = 0.0
+    Rmx: float = 0.0
+    Rmy: float = 0.0
+    Rmz: float = 0.0
+    plane: str | None = None
+    restraint: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0, 0])
 
-    def __init__(
-        self,
-        coordinates,
-        nodeID,
-        meshNode=False,
-        Fx=0.0,
-        Fy=0.0,
-        Fz=0.0,
-        Mx=0.0,
-        My=0.0,
-        Mz=0.0,
-        Ux=0.0,
-        Uy=0.0,
-        Uz=0.0,
-        phi_x=0.0,
-        phi_y=0.0,
-        phi_z=0.0,
-        eFx=0.0,
-        eFy=0.0,
-        eFz=0.0,
-        eMx=0.0,
-        eMy=0.0,
-        eMz=0.0,
-        plane=None,
-        restraint=None
-    ):
-        # coordinates
-        self.coordinates = coordinates
-        # ID
-        self.nodeID = nodeID
-        # True indicates the node is part of a member mesh
-        self.meshNode = meshNode
-        # forces
-        self.Fx = Fx
-        self.Fy = Fy
-        self.Fz = Fz
-        # moments
-        self.Mx = Mx
-        self.My = My
-        self.Mz = Mz
-        # displacements
-        self.Ux = Ux
-        self.Uy = Uy
-        self.Uz = Uz
-        # rotations
-        self.phi_x = phi_x
-        self.phi_y = phi_y
-        self.phi_z = phi_z
-        # equivalent forces
-        self.eFx = eFx
-        self.eFy = eFy
-        self.eFz = eFz
-        # equivalent moments
-        self.eMx = eMx
-        self.eMy = eMy
-        self.eMz = eMz
-        # restraint
-        if plane == None:
-            self.restraint = [0, 0, 0, 0, 0, 0]
-        elif plane == 'xy':
-            self.restraint = [0, 0, 1, 1, 1, 0]
-        elif plane == 'yz':
-            self.restraint = [1, 0, 0, 0, 1, 1]
-        elif plane == 'zx':
-            self.restraint = [0, 1, 0, 1, 0, 1]
-        # nodal reactions
-        self.Rx = 0
-        self.Ry = 0
-        self.Rz = 0
-        self.Rmx = 0
-        self.Rmy = 0
-        self.Rmz = 0
-
-    def addRestraint(self, restraint):
+    def __post_init__(self) -> None:
         """
-        Method to restrain the nodal degrees of freedom
+        Post-initialization method to set default restraints based on the plane.
+        """
+        if self.plane is None:
+            return
+        elif self.plane == 'xy':
+            self.restraint = [0, 0, 1, 1, 1, 0]
+        elif self.plane == 'yz':
+            self.restraint = [1, 0, 0, 0, 1, 1]
+        elif self.plane == 'zx':
+            self.restraint = [0, 1, 0, 1, 0, 1]
 
-        REQUIRED PARAMETERS:
+    def addRestraint(self, restraint: list[int]) -> None:
+        """
+        Adds restraint to the nodal degrees of freedom.
 
-        restraint:    list of 0s and 1s for the various degrees of
-                    freedom, [Ux, Uy, Uz, φx, φy, φz], where non-zero
-                    values are restrained degrees of freedom. For
-                    example, the list to represent a pin would hold
-                    1s for the translational degrees of freedom and
-                    0s for the rotational degrees of freedom.
+        Args:
+            restraint (List[int]): List of 6 integers (0 or 1) indicating which degrees of freedom are restrained.
+                Format: [Ux, Uy, Uz, φx, φy, φz], where 1 means restrained and 0 means free.
+                Examples:
+                - Pinned node: [1, 1, 1, 0, 0, 0]
+                - Fixed node: [1, 1, 1, 1, 1, 1]
+                - Roller in x-direction: [0, 1, 1, 0, 0, 0]
 
-                    pinned node:                [1,1,1,0,0,0]
-                    fixed node:                    [1,1,1,1,1,1]
-                    roller in the x direction:    [0,1,1,0,0,0]
-                    etc.
-
-        USAGE:
-
-        Node.addRestraint([1,1,1,0,0,0])
+        Raises:
+            ValueError: If restraint is not a list of exactly 6 integers, each being 0 or 1.
         """
         # check the user defined list is properly formatted
         if type(restraint) == list and len(restraint) == 6 and restraint == [n for n in restraint if n in [0, 1]]:
@@ -152,11 +113,15 @@ class Node():
                 msg6=str("Roller in the x direction: [0,1,1,0,0,0]")
             ))
 
-    def addLoad(self, mag, lType='moment', direction='y'):
+    def addLoad(self, mag: float, lType: str = 'moment', direction: str = 'y') -> None:
         """
-        lType: type of nodal load moment or point load
-        mag: magnitude of the applied load in kips or kip-ft
-        direction: the local plane in which the load is applied
+        Adds a load to the node.
+
+        Args:
+            mag (float): Magnitude of the load. Units are kips for forces and kip-ft for moments.
+            lType (str): Type of load. Either 'moment' or 'force'. Defaults to 'moment'.
+            direction (str): Direction of the load. 'X', 'Y', or 'Z'. Defaults to 'y'.
+                Note: For moments, the magnitude is multiplied by 12 (converting to inch-kips?).
         """
 
         if lType == 'moment':

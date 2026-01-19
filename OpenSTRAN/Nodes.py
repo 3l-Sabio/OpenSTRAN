@@ -15,7 +15,7 @@ class Nodes():
         self.y = []
         self.z = []
 
-    def addNode(self, x, y, z, meshNode=False):
+    def addNode(self, x, y, z, mesh_node=False):
         """
         Method to add node objects to the model
 
@@ -39,9 +39,9 @@ class Nodes():
             coordinates = Coordinate(x, y, z)
             node = Node(
                 coordinates=coordinates,
-                nodeID=self.count,
+                node_ID=self.count,
                 plane=self.plane,
-                meshNode=meshNode
+                mesh_node=mesh_node
             )
             self.nodes[coordinates] = node
         return (node)
