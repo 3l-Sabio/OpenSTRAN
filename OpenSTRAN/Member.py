@@ -1,8 +1,13 @@
+from .Nodes import Nodes
+from .Node import Node
 from .Submember import SubMember
 import numpy as np
-import math
+from math import sqrt
+
+from dataclasses import dataclass, field, asdict
 
 
+@dataclass(slots=True)
 class Member():
     """
     3D Space Frame Member Object Between Nodes
@@ -28,43 +33,29 @@ class Member():
     pointLoads: list of tuples [(orientation, location, mag),...]
     """
 
-    def __init__(
-        self,
-        nodes,
-        node_i,
-        node_j,
-        i_release=None,
-        j_release=None,
-        E=None,
-        Ixx=None,
-        Iyy=None,
-        A=None,
-        G=None,
-        J=None,
-        mesh=None,
-        bracing=None,
-        shape=None
-    ):
-        # default properties are for a W12x14
-        self.node_i = node_i
-        self.node_j = node_j
-        self.i_release = False if i_release == None else i_release
-        self.j_release = False if j_release == None else j_release
-        self.E = 29000 if E == None else E
-        self.Izz = 88.6 if Ixx == None else Ixx
-        self.Iyy = 2.36 if Iyy == None else Iyy
-        self.A = 4.16 if A == None else A
-        self.G = 12000 if G == None else G
-        self.J = 0.0704 if J == None else J
-        self.mesh = 50 if mesh == None else mesh
-        self.bracing = 'continuous' if bracing == None else bracing
-        self.shape = 'W12X14' if shape == None else shape
-        self.count = 0
-        self.submembers = {}
-        self.pointLoads = []
+    nodes: Nodes
+    node_i: Node
+    node_j: Node
+    i_release: bool
+    j_release: bool
+    E: float
+    Ixx: float
+    Iyy: float
+    A: float
+    G: float
+    J: float
+    mesh: int
+    bracing: str
+    shape: str
+    length: float = field(init=False)
+    count: int = 0
+    submembers: dict[int, SubMember] = field(
+        default_factory=dict[int, SubMember])
+
+    def __post_init__(self):
 
         # calculate the member length based on the node coordinates
-        self.length = self.calculateMbrLength(node_i, node_j)
+        self.length = self.calculateMbrLength(self.node_i, self.node_j)
 
         if self.mesh == None:
             self.addSubMember(
@@ -82,10 +73,11 @@ class Member():
 
         else:
             for i, node in enumerate(
-                self.addMesh(nodes, node_i, node_j, self.mesh, self.length)
+                self.addMesh(self.nodes, self.node_i,
+                             self.node_j, self.mesh, self.length)
             ):
                 if i+1 == 1:
-                    i = node_i
+                    i = self.node_i
                     j = node
 
                     self.addSubMember(
@@ -94,7 +86,7 @@ class Member():
                         self.i_release,
                         False,
                         self.E,
-                        self.Izz,
+                        self.Ixx,
                         self.Iyy,
                         self.A,
                         self.G,
@@ -110,7 +102,7 @@ class Member():
                         False,
                         False,
                         self.E,
-                        self.Izz,
+                        self.Ixx,
                         self.Iyy,
                         self.A,
                         self.G,
@@ -119,7 +111,7 @@ class Member():
 
                 else:
                     i = j
-                    j = node_j
+                    j = self.node_j
 
                     self.addSubMember(
                         i,
@@ -127,24 +119,24 @@ class Member():
                         False,
                         self.j_release,
                         self.E,
-                        self.Izz,
+                        self.Ixx,
                         self.Iyy,
                         self.A,
                         self.G,
                         self.J
                     )
 
-    def calculateMbrLength(self, node_i, node_j):
+    def calculateMbrLength(self, node_i: Node, node_j: Node) -> float:
         # calculate the x, y and z vector components of the member
         dx = node_j.coordinates.x - node_i.coordinates.x
         dy = node_j.coordinates.y - node_i.coordinates.y
         dz = node_j.coordinates.z - node_i.coordinates.z
         # calculate and return the member length
-        return (math.sqrt(dx**2 + dy**2 + dz**2))
+        return (sqrt(dx**2 + dy**2 + dz**2))
 
-    def addMesh(self, nodes, node_i, node_j, mesh, l):
+    def addMesh(self, nodes: Nodes, node_i: Node, node_j: Node, mesh: int, l: float) -> list[Node]:
         # instantiate an array to hold the mesh nodes
-        mesh_nodes = []
+        mesh_nodes: list[Node] = []
         # calculate the x, y and z vector components of the member
         dx = node_j.coordinates.x - node_i.coordinates.x
         dy = node_j.coordinates.y - node_i.coordinates.y
@@ -291,7 +283,7 @@ class Member():
                         dx = x - xi
                         dy = y - yi
                         dz = z - zi
-                        L = math.sqrt(dx**2 + dy**2 + dz**2)
+                        L = sqrt(dx**2 + dy**2 + dz**2)
                         # interpolate the quarter point moment value
                         M.append(abs(np.interp(L, Lp, Mp)))
                         Mmax.append(max(
