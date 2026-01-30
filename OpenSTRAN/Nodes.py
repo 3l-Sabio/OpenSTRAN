@@ -27,6 +27,12 @@ class Nodes():
     z: list[float] = field(default_factory=list[float])
 
     def properties(self) -> dict[str, Any]:
+        """
+        Return the dataclass properties as a dictionary.
+
+        Returns:
+            Dict[str, Any]: Dictionary of this instance's fields.
+        """
         return asdict(self)
 
     def addNode(self, x: float, y: float, z: float, mesh_node: bool = False) -> Node:

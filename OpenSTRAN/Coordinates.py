@@ -41,6 +41,15 @@ class Coordinate():
 
     @classmethod
     def from_tuple(cls, coordinates: tuple[float, float, float]) -> Self:
+        """
+        Create a `Coordinate` instance from a tuple of x, y, z values.
+
+        :param coordinates: A tuple containing (x, y, z) coordinate values.
+        :type coordinates: tuple[float, float, float]
+
+        :returns: A new `Coordinate` instance.
+        :rtype: Self
+        """
         x = coordinates[0]
         y = coordinates[1]
         z = coordinates[2]

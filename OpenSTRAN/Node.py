@@ -85,6 +85,12 @@ class Node():
             self.restraint = [0, 1, 0, 1, 0, 1]
 
     def properties(self) -> dict[str, Any]:
+        """
+        Return the dataclass properties as a dictionary.
+
+        Returns:
+            Dict[str, Any]: Dictionary of this instance's fields.
+        """
         return asdict(self)
 
     def addRestraint(self, restraint: list[int]) -> None:
