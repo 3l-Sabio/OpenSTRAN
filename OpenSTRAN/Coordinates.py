@@ -1,4 +1,5 @@
-from numpy import array
+# import numpy as np
+from numpy import ndarray, array
 
 from dataclasses import dataclass, field, asdict
 
@@ -21,7 +22,7 @@ class Coordinate():
     y: float
     z: float
     coordinates: tuple[float, float, float] = field(init=False)
-    vector: object = field(init=False)
+    vector: ndarray = field(init=False)
 
     def __post_init__(self):
         """
