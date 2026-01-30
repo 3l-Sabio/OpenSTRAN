@@ -31,6 +31,12 @@ class Coordinate():
         self.vector = array([self.x, self.y, self.z])
 
     def properties(self) -> dict[str, Any]:
+        """
+        Return the dataclass properties as a dictionary.
+
+        Returns:
+            Dict[str, Any]: Dictionary of this instance's fields.
+        """
         return asdict(self)
 
     @classmethod
