@@ -4,7 +4,12 @@ import numpy as np
 
 from math import sqrt
 
+from dataclasses import dataclass, field, asdict
 
+from typing import Any
+
+
+@dataclass(slots=True)
 class SubMember():
     """
     3D space-frame submember between mesh nodes.
@@ -25,24 +30,43 @@ class SubMember():
         G (float): Shear modulus.
         J (float): Polar moment of inertia.
         length (float): Submember length (computed).
-        rotationMatrix (np.ndarray): Rotation matrix from local to global.
+        rotation_matrix (np.ndarray): Rotation matrix from local to global.
         Kl (np.ndarray): Local stiffness matrix.
         KG (np.ndarray): Global stiffness matrix.
     """
+    node_i: Node
+    node_j: Node
+    i_release: bool
+    j_release: bool
+    E: float
+    Ixx: float
+    Iyy: float
+    A: float
+    G: float
+    J: float
+    ENAs: dict[str, list[float]] = field(
+        default_factory=dict[str, list[float]])
+    results: dict[str, list[float]] = field(
+        default_factory=dict[str, list[float]])
+    length: float = field(init=False)
+    rotation_matrix: np.ndarray = field(init=False)
+    transformation_matrix: np.ndarray = field(init=False)
+    Kl: np.ndarray = field(init=False)
+    Kg: np.ndarray = field(init=False)
 
-    def __init__(
-        self,
-        node_i: Node,
-        node_j: Node,
-        i_release: bool,
-        j_release: bool,
-        E: float,
-        Ixx: float,
-        Iyy: float,
-        A: float,
-        G: float,
-        J: float,
-    ):
+    def properties(self) -> dict[str, Any]:
+        """
+        Return all submember properties as a dictionary.
+
+        Converts the dataclass instance into a dictionary representation containing
+        all field names and their current values.
+
+        :returns: Dictionary containing all member attributes and their values.
+        :rtype: dict[str, Any]
+        """
+        return asdict(self)
+
+    def __post_init__(self) -> None:
         """Initialize a `SubMember`.
 
         :param node_i: Start node of the submember.
@@ -66,16 +90,6 @@ class SubMember():
         :param J: Polar moment of inertia.
         :type J: float
         """
-        self.node_i = node_i
-        self.node_j = node_j
-        self.i_release = i_release
-        self.j_release = j_release
-        self.E = E
-        self.Ixx = Ixx
-        self.Iyy = Iyy
-        self.A = A
-        self.G = G
-        self.J = J
         self.ENAs = {
             'axial': [0, 0],
             'shear': [0, 0],
@@ -93,34 +107,33 @@ class SubMember():
             'minor axis moments': [],
             'major axis moments': []
         }
-
         # calculate the member length based on the node coordinates
-        self.length = self.calculate_length(node_i, node_j)
+        self.length = self.calculate_length(self.node_i, self.node_j)
 
         # determine the transformation matrix for the member from the
         # member local coordinates to a global reference frame
-        self.rotationMatrix = self.build_rotation_matrix(
-            node_i,
-            node_j,
-            i_release,
-            j_release
+        self.rotation_matrix = self.build_rotation_matrix(
+            self.node_i,
+            self.node_j,
+            self.i_release,
+            self.j_release
         )
 
-        self.transformation_matrix = self.rotationMatrix.T
+        self.transformation_matrix = self.rotation_matrix.T
 
         # calculate the member local stiffness matrix
         self.Kl = self.build_stiffness_matrix(
-            E,
-            Ixx,
-            Iyy,
-            A,
-            G,
-            J,
+            self.E,
+            self.Ixx,
+            self.Iyy,
+            self.A,
+            self.G,
+            self.J,
             self.length
         )
 
         # calculate the member global stiffness matrix
-        self.KG = self.transformation_matrix.T.dot(
+        self.Kg = self.transformation_matrix.T.dot(
             self.Kl).dot(self.transformation_matrix)
 
     def calculate_length(self, node_i: Node, node_j: Node) -> float:
@@ -145,7 +158,7 @@ class SubMember():
         """
         Build the rotation/transformation matrix for the submember.
 
-        Establishes the local x,y,z unit vectors using a Gram–Schmidt
+        Establishes the local x,y,z unit vectors using a Gram-Schmidt
         approach and constructs the transformation matrix between the
         local element frame and the global frame. The size of the
         returned matrix depends on release conditions.
@@ -213,33 +226,33 @@ class SubMember():
         local_z_unit = np.cross(local_x_unit, local_y_unit)
         # combine reference frame into a standard rotation matrix for
         # the element x,y,z => columns 1,2,3
-        rotationMatrix = np.array(
+        rotation_matrix = np.array(
             [local_x_unit, local_y_unit, local_z_unit,]).T
 
         # populate the rotation matrix with the proper values
 
         if i_release == False and j_release == False:
             transformation_matrix = np.zeros((12, 12))
-            transformation_matrix[0:3, 0:3] = rotationMatrix
-            transformation_matrix[3:6, 3:6] = rotationMatrix
-            transformation_matrix[6:9, 6:9] = rotationMatrix
-            transformation_matrix[9:12, 9:12] = rotationMatrix
+            transformation_matrix[0:3, 0:3] = rotation_matrix
+            transformation_matrix[3:6, 3:6] = rotation_matrix
+            transformation_matrix[6:9, 6:9] = rotation_matrix
+            transformation_matrix[9:12, 9:12] = rotation_matrix
         elif i_release == True and j_release == False:
             transformation_matrix = np.zeros((10, 10))
-            transformation_matrix[0:3, 0:3] = rotationMatrix
-            transformation_matrix[3, 3] = rotationMatrix[0, 0]
-            transformation_matrix[4:7, 4:7] = rotationMatrix
-            transformation_matrix[7:10, 7:10] = rotationMatrix
+            transformation_matrix[0:3, 0:3] = rotation_matrix
+            transformation_matrix[3, 3] = rotation_matrix[0, 0]
+            transformation_matrix[4:7, 4:7] = rotation_matrix
+            transformation_matrix[7:10, 7:10] = rotation_matrix
         elif i_release == False and j_release == True:
             transformation_matrix = np.zeros((10, 10))
-            transformation_matrix[0:3, 0:3] = rotationMatrix
-            transformation_matrix[3:6, 3:6] = rotationMatrix
-            transformation_matrix[6:9, 6:9] = rotationMatrix
-            transformation_matrix[9, 9] = rotationMatrix[0, 0]
+            transformation_matrix[0:3, 0:3] = rotation_matrix
+            transformation_matrix[3:6, 3:6] = rotation_matrix
+            transformation_matrix[6:9, 6:9] = rotation_matrix
+            transformation_matrix[9, 9] = rotation_matrix[0, 0]
         else:
             transformation_matrix = np.zeros((6, 6))
-            transformation_matrix[0:3, 0:3] = rotationMatrix
-            transformation_matrix[3:6, 3:6] = rotationMatrix
+            transformation_matrix[0:3, 0:3] = rotation_matrix
+            transformation_matrix[3:6, 3:6] = rotation_matrix
 
         return (transformation_matrix)
 

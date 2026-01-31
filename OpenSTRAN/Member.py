@@ -4,33 +4,57 @@ from .Submember import SubMember
 import numpy as np
 from math import sqrt
 
+from typing import Any
+
 from dataclasses import dataclass, field, asdict
 
 
 @dataclass(slots=True)
 class Member():
     """
-    3D Space Frame Member Object Between Nodes
+    Represents a 3D space frame member connecting two nodes.
 
-    REQUIRED PARAMETERS
+    A member is a structural element that connects two nodes and can be discretized into
+    submembers for analysis. It supports various boundary conditions, material properties,
+    and loading conditions.
 
-    node_i: 3D Space Frame Node Object (See Node Class)
-    node_j: 3D Space Frame Node Object (See Node Class)
-
-    OPTIONAL PARAMERS
-
-    i_release: False = unpinned, True = pinned
-    j_release: False = unpinned, True = pinned
-    E: Young's Modulus [ksi]
-    I: Moment of Inertia [in^4]
-    A: Cross-Sectional Area [in^2]
-    G: Shear Modulus [ksi]
-    J: Polar Moment of Inertia [in^4]
-    mesh: number of discretizations per member
-    bracing: 'continuous', 'quarter', 'third', 'midspan', or locations 
-    along span as an array: [(l1,l2,...,ln)]
-
-    pointLoads: list of tuples [(orientation, location, mag),...]
+    :ivar nodes: Reference to the Nodes collection object.
+    :vartype nodes: Nodes
+    :ivar node_i: Start node of the member.
+    :vartype node_i: Node
+    :ivar node_j: End node of the member.
+    :vartype node_j: Node
+    :ivar i_release: Boundary condition at node i (False = fixed/pinned, True = pinned).
+    :vartype i_release: bool
+    :ivar j_release: Boundary condition at node j (False = fixed/pinned, True = pinned).
+    :vartype j_release: bool
+    :ivar E: Young's modulus in ksi.
+    :vartype E: float
+    :ivar Ixx: Strong axis moment of inertia in in^4.
+    :vartype Ixx: float
+    :ivar Iyy: Weak axis moment of inertia in in^4.
+    :vartype Iyy: float
+    :ivar A: Cross-sectional area in in^2.
+    :vartype A: float
+    :ivar G: Shear modulus in ksi.
+    :vartype G: float
+    :ivar J: Polar moment of inertia in in^4.
+    :vartype J: float
+    :ivar mesh: Number of discretizations (submembers) along the member span.
+    :vartype mesh: int
+    :ivar bracing: Lateral bracing configuration. Can be 'continuous', 'quarter', 'third',
+                   'midspan', or a list of bracing locations along the span.
+    :vartype bracing: str | list[float]
+    :ivar shape: Cross-sectional shape identifier.
+    :vartype shape: str
+    :ivar length: Calculated length of the member (in).
+    :vartype length: float
+    :ivar Cb: Lateral-torsional buckling coefficient.
+    :vartype Cb: float
+    :ivar count: Counter for submember creation.
+    :vartype count: int
+    :ivar submembers: Dictionary of submembers indexed by creation order.
+    :vartype submembers: dict[int, SubMember]
     """
 
     nodes: Nodes
@@ -45,132 +69,203 @@ class Member():
     G: float
     J: float
     mesh: int
-    bracing: str
+    bracing: str | list[float]
     shape: str
     length: float = field(init=False)
+    Cb: float = field(init=False)
     count: int = 0
     submembers: dict[int, SubMember] = field(
         default_factory=dict[int, SubMember])
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """
+        Initialize the member after dataclass instantiation.
 
-        # calculate the member length based on the node coordinates
-        self.length = self.calculateMbrLength(self.node_i, self.node_j)
+        Calculates the member length and discretizes the member into submembers
+        based on the specified mesh parameter. Creates connectivity between
+        submembers using intermediate mesh nodes.
 
-        if self.mesh == None:
-            self.addSubMember(
-                self.node_i,
-                self.node_j,
-                self.i_release,
-                self.j_release,
-                self.E,
-                self.Ixx,
-                self.Iyy,
-                self.A,
-                self.G,
-                self.J
-            )
+        :returns: None
+        :rtype: None
+        """
+        # Calculate the member length based on the node coordinates
+        self.length = self.calculate_length(self.node_i, self.node_j)
 
-        else:
-            for i, node in enumerate(
-                self.addMesh(self.nodes, self.node_i,
-                             self.node_j, self.mesh, self.length)
-            ):
-                if i+1 == 1:
-                    i = self.node_i
-                    j = node
+        j: Node = self.node_i
+        for i, node in enumerate(
+            self.add_mesh(self.nodes, self.node_i,
+                          self.node_j, self.mesh, self.length)
+        ):
+            if i+1 == 1:
+                i = self.node_i
+                j = node
 
-                    self.addSubMember(
-                        i,
-                        j,
-                        self.i_release,
-                        False,
-                        self.E,
-                        self.Ixx,
-                        self.Iyy,
-                        self.A,
-                        self.G,
-                        self.J)
+                self.add_submember(
+                    i,
+                    j,
+                    self.i_release,
+                    False,
+                    self.E,
+                    self.Ixx,
+                    self.Iyy,
+                    self.A,
+                    self.G,
+                    self.J)
 
-                elif i+1 < self.mesh:
-                    i = j
-                    j = node
+            elif i+1 < self.mesh:
+                i = j
+                j = node
 
-                    self.addSubMember(
-                        i,
-                        j,
-                        False,
-                        False,
-                        self.E,
-                        self.Ixx,
-                        self.Iyy,
-                        self.A,
-                        self.G,
-                        self.J
-                    )
+                self.add_submember(
+                    i,
+                    j,
+                    False,
+                    False,
+                    self.E,
+                    self.Ixx,
+                    self.Iyy,
+                    self.A,
+                    self.G,
+                    self.J
+                )
 
-                else:
-                    i = j
-                    j = self.node_j
+            else:
+                i = j
+                j = self.node_j
 
-                    self.addSubMember(
-                        i,
-                        j,
-                        False,
-                        self.j_release,
-                        self.E,
-                        self.Ixx,
-                        self.Iyy,
-                        self.A,
-                        self.G,
-                        self.J
-                    )
+                self.add_submember(
+                    i,
+                    j,
+                    False,
+                    self.j_release,
+                    self.E,
+                    self.Ixx,
+                    self.Iyy,
+                    self.A,
+                    self.G,
+                    self.J
+                )
 
-    def calculateMbrLength(self, node_i: Node, node_j: Node) -> float:
-        # calculate the x, y and z vector components of the member
+    def calculate_length(self, node_i: Node, node_j: Node) -> float:
+        """
+        Calculate the length of the member using the Euclidean distance formula.
+
+        Computes the 3D distance between two nodes based on their coordinate
+        positions in the global reference frame.
+
+        :param node_i: Start node of the member.
+        :type node_i: Node
+        :param node_j: End node of the member.
+        :type node_j: Node
+        :returns: The length of the member in inches.
+        :rtype: float
+        """
+        # Calculate the x, y and z vector components of the member
         dx = node_j.coordinates.x - node_i.coordinates.x
         dy = node_j.coordinates.y - node_i.coordinates.y
         dz = node_j.coordinates.z - node_i.coordinates.z
-        # calculate and return the member length
+        # Calculate and return the member length
         return (sqrt(dx**2 + dy**2 + dz**2))
 
-    def addMesh(self, nodes: Nodes, node_i: Node, node_j: Node, mesh: int, l: float) -> list[Node]:
-        # instantiate an array to hold the mesh nodes
+    def properties(self) -> dict[str, Any]:
+        """
+        Return all member properties as a dictionary.
+
+        Converts the dataclass instance into a dictionary representation containing
+        all field names and their current values.
+
+        :returns: Dictionary containing all member attributes and their values.
+        :rtype: dict[str, Any]
+        """
+        return asdict(self)
+
+    def add_mesh(self, nodes: Nodes, node_i: Node, node_j: Node, mesh: int, l: float) -> list[Node]:
+        """
+        Create intermediate mesh nodes along the member span.
+
+        Generates evenly spaced nodes along the member length based on the mesh
+        parameter. These nodes are used as intermediary connection points for
+        submembers in the discretization process.
+
+        :param nodes: Collection of nodes in the model.
+        :type nodes: Nodes
+        :param node_i: Start node of the member.
+        :type node_i: Node
+        :param node_j: End node of the member.
+        :type node_j: Node
+        :param mesh: Number of equal segments to divide the member into.
+        :type mesh: int
+        :param l: Total length of the member in inches.
+        :type l: float
+        :returns: List of intermediate mesh nodes along the member.
+        :rtype: list[Node]
+        """
+        # Instantiate an array to hold the mesh nodes
         mesh_nodes: list[Node] = []
-        # calculate the x, y and z vector components of the member
+        # Calculate the x, y and z vector components of the member
         dx = node_j.coordinates.x - node_i.coordinates.x
         dy = node_j.coordinates.y - node_i.coordinates.y
         dz = node_j.coordinates.z - node_i.coordinates.z
-        # calculate the member unit vectors
+        # Calculate the member unit vectors
         x_unit = dx/l
         y_unit = dy/l
         z_unit = dz/l
-        # add the mesh to the model
+        # Add the mesh to the model
         for i in range(mesh):
-            # calculate the scalar
+            # Calculate the scalar
             scalar = l/mesh*(i+1)
-            # calculate nodal coordinates of mesh point
+            # Calculate nodal coordinates of mesh point
             x = node_i.coordinates.x + scalar*x_unit
             y = node_i.coordinates.y + scalar*y_unit
             z = node_i.coordinates.z + scalar*z_unit
-            # add the mesh coordinates as a node to the model
-            mesh_nodes.append(nodes.addNode(x, y, z, mesh_node=True))
-        # return a list of the mesh nodes
+            # Add the mesh coordinates as a node to the model
+            mesh_nodes.append(nodes.add_node(x, y, z, mesh_node=True))
+        # Return a list of the mesh nodes
         return (mesh_nodes)
 
-    def addSubMember(
+    def add_submember(
         self,
-        node_i,
-        node_j,
-        i_release,
-        j_release,
-        E,
-        Ixx,
-        Iyy,
-        A,
-        G,
-        J
-    ):
+        node_i: Node,
+        node_j: Node,
+        i_release: bool,
+        j_release: bool,
+        E: float,
+        Ixx: float,
+        Iyy: float,
+        A: float,
+        G: float,
+        J: float
+    ) -> None:
+        """
+        Add a submember to the member collection.
+
+        Creates a new submember element connecting two nodes with specified
+        boundary conditions and material properties. The submember is stored
+        in the submembers dictionary using an auto-incremented counter.
+
+        :param node_i: Start node of the submember.
+        :type node_i: Node
+        :param node_j: End node of the submember.
+        :type node_j: Node
+        :param i_release: Release condition at start node (False = fixed, True = pinned).
+        :type i_release: bool
+        :param j_release: Release condition at end node (False = fixed, True = pinned).
+        :type j_release: bool
+        :param E: Young's modulus in ksi.
+        :type E: float
+        :param Ixx: Strong axis moment of inertia in in^4.
+        :type Ixx: float
+        :param Iyy: Weak axis moment of inertia in in^4.
+        :type Iyy: float
+        :param A: Cross-sectional area in in^2.
+        :type A: float
+        :param G: Shear modulus in ksi.
+        :type G: float
+        :param J: Polar moment of inertia in in^4.
+        :type J: float
+        :returns: None
+        :rtype: None
+        """
         self.count += 1
         submbr = SubMember(
             node_i,
@@ -186,32 +281,61 @@ class Member():
         )
         self.submembers[self.count] = submbr
 
-    def calculateCb(self):
-        # instantiate an array to hold Cb for each unbraced span
-        Cb = []
+    def calculate_Cb(self) -> float:
+        """
+        Calculate the lateral-torsional buckling coefficient (Cb) for the member.
 
-        def discretize(length, n, l1=0):
-            # returns n size array of locations along member span / n
-            locations = []
+        Computes Cb based on moment variation along unbraced spans using the
+        standard AISC formula: Cb = 12.5*Mmax / (2.5*Mmax + 3*Ma + 4*Mb + 3*Mc).
+        The calculation accounts for lateral bracing locations and interpolates
+        moments at quarter-span points. The result is limited to a maximum of 3.0.
+
+        :returns: The lateral-torsional buckling coefficient, limited to 3.0 maximum.
+        :rtype: float
+        """
+        # Instantiate an array to hold Cb for each unbraced span
+        Cb: list[float] = []
+
+        def discretize(length: float, n: int, l1: float = 0.0) -> list[float]:
+            """Discretize span into n segments and return division points.
+
+            :param length: Length of span.
+            :type length: float
+            :param n: Number of segments.
+            :type n: int
+            :param l1: Offset location.
+            :type l1: float
+            :returns: List of discretized locations.
+            :rtype: list[float]
+            """
+            # Returns an n-sized array of locations along the member span
+            locations: list[float] = []
             for i in range(n-1):
                 i += 1
-                locations.append(l1+i*length/n)
+                locations.append(l1 + i * length / n)
             return (locations)
 
-        def braceCoordinates(bracePoint):
-            # calculate the x, y and z vector components of the member
+        def braceCoordinates(bracePoint: float) -> tuple[float, float, float]:
+            """Calculate the global coordinates of a brace point along the member.
+
+            :param bracePoint: Distance along member span.
+            :type bracePoint: float
+            :returns: Tuple of (x, y, z) coordinates.
+            :rtype: tuple[float, float, float]
+            """
+            # Calculate the x, y and z vector components of the member
             dx = self.node_j.coordinates.x - self.node_i.coordinates.x
             dy = self.node_j.coordinates.y - self.node_i.coordinates.y
             dz = self.node_j.coordinates.z - self.node_i.coordinates.z
-            # calculate the member unit vectors
+            # Calculate the member unit vectors
             x_unit = dx/self.length
             y_unit = dy/self.length
             z_unit = dz/self.length
-            # calculate nodal coordinates of brace point
+            # Calculate nodal coordinates of brace point
             x = self.node_i.coordinates.x + bracePoint*x_unit
             y = self.node_i.coordinates.y + bracePoint*y_unit
             z = self.node_i.coordinates.z + bracePoint*z_unit
-            # return the brace point coordinates
+            # Return the brace point coordinates
             return (x, y, z)
 
         if self.bracing == 'quarter':
@@ -233,7 +357,7 @@ class Member():
 
         for i in range(unbracedSpans):
 
-            # determine unbraced span length
+            # Determine unbraced span length
             if i == 0:
                 l1 = 0
                 unbracedLength = bracePoints[i]
@@ -244,15 +368,15 @@ class Member():
                 l1 = bracePoints[i-1]
                 unbracedLength = bracePoints[i] - l1
 
-            # determine the the 1/4 point locations along the unbraced span
+            # Determine the 1/4 point locations along the unbraced span
             quarterPoints = discretize(unbracedLength, 4, l1)
 
-            # instantiate an empty array to hold Mmax
-            Mmax = []
-            # instantiate an empty array to hold Ma, Mb, and Mc
-            M = []
+            # Instantiate an empty array to hold Mmax
+            moments: list[float] = []
+            # Instantiate an empty array to hold Ma, Mb, and Mc
+            M: list[float] = []
 
-            # determine the nodal coordinates of the quarter points
+            # Determine the nodal coordinates of the quarter points
             for quarterPoint in quarterPoints:
                 coordinates = braceCoordinates(quarterPoint)
 
@@ -261,115 +385,138 @@ class Member():
                     x = coordinates[0]
                     y = coordinates[1]
                     z = coordinates[2]
-                    # node i coordinates
+                    # Node i coordinates
                     xi = submbr.node_i.coordinates.x
                     yi = submbr.node_i.coordinates.y
                     zi = submbr.node_i.coordinates.z
-                    # node j coordinates
+                    # Node j coordinates
                     xj = submbr.node_j.coordinates.x
                     yj = submbr.node_j.coordinates.y
                     zj = submbr.node_j.coordinates.z
-                    # determine which submembers the 1/4 point falls between
+                    # Determine which submembers the 1/4 point falls between
                     if (xi, yi, zi) <= coordinates <= (xj, yj, zj):
-                        # location values for linear interpolation
-                        Lp = []
-                        Lp.append(0)
+                        # Location values for linear interpolation
+                        Lp: list[float] = []
+                        Lp.append(0.0)
                         Lp.append(submbr.length)
-                        # moment values for linear interpolation
-                        Mp = []
+                        # Moment values for linear interpolation
+                        Mp: list[float] = []
                         Mp.append(submbr.results['major axis moments'][0])
                         Mp.append(-1*submbr.results['major axis moments'][1])
-                        # location for moment interpolation
+                        # Location for moment interpolation
                         dx = x - xi
                         dy = y - yi
                         dz = z - zi
                         L = sqrt(dx**2 + dy**2 + dz**2)
-                        # interpolate the quarter point moment value
+                        # Interpolate the quarter point moment value
                         M.append(abs(np.interp(L, Lp, Mp)))
-                        Mmax.append(max(
+                        moments.append(max(
                             abs(submbr.results['major axis moments'][0]),
                             abs(submbr.results['major axis moments'][1])
                         ))
                     else:
-                        Mmax.append(max(
+                        moments.append(max(
                             abs(submbr.results['major axis moments'][0]),
                             abs(submbr.results['major axis moments'][1])
                         ))
-            # calculate Cb
-            Mmax = max(Mmax)
+            # Calculate Cb
+            Mmax = max(moments)
             Ma = M[0]
             Mb = M[1]
             Mc = M[2]
             Cb.append(12.5*Mmax/(2.5*Mmax + 3*Ma + 4*Mb + 3*Mc))
 
         self.Cb = min(min(Cb), 3)
-        return (self.Cb)
+        return self.Cb
 
-    def addPointLoad(self, mag, direction, location):
-        # direction in global 'X', 'Y', or 'Z'
-        # location in % of span
+    def add_point_load(self, mag: float, direction: str, location: float) -> None:
+        """
+        Apply a concentrated point load to the member.
 
+        Applies a point load at a specified location along the member span.
+        The load can be specified in either global (X, Y, Z) or local (x, y, z)
+        coordinates. The method calculates equivalent nodal actions and distributes
+        loads to the appropriate nodes and submembers.
+
+        :param mag: Magnitude of the load in kips.
+        :type mag: float
+        :param direction: Load direction - global ('X', 'Y', 'Z') or local ('x', 'y', 'z').
+        :type direction: str
+        :param location: Load location as percentage of member span (0-100%).
+        :type location: float
+        :returns: None
+        :rtype: None
+        :raises ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
+        """
+        # Convert location from percentage to absolute distance
         location = self.length*(location/100)
 
-        # instantiate a variable measuring distance along member
+        # Instantiate a variable measuring distance along the member
         l1 = 0
 
-        # acceptable floating point error to consider load at node
+        # Acceptable floating-point error tolerance to consider load at a node
         pointError = 1*10**-10
 
-        # iterate through the sub-members
-        for n, submbr in self.submembers.items():
+        # Iterate through the submembers
+        for _, submbr in self.submembers.items():
 
             l2 = l1 + submbr.length
 
-            # check if the load lands on the current sub-member
+            # Check if the load lands on the current submember
             if l1 <= location <= l2:
 
-                # extract rotation matrix for current submember
-                TM = submbr.rotationMatrix[0:3, 0:3]
+                # Extract rotation matrix for the current submember
+                transformation_matrix = submbr.rotation_matrix[0:3, 0:3]
 
-                # initialize a global force vector
+                # Initialize a global force vector
                 if direction == 'X':
-                    FG = np.array([mag, 0, 0])
+                    fg = np.array([mag, 0, 0])
 
                 elif direction == 'x':
-                    FG = np.array(np.matmul(TM, np.array([mag, 0, 0])))
+                    fg = np.array(
+                        np.matmul(transformation_matrix, np.array([mag, 0, 0])))
 
                 elif direction == 'Y':
-                    FG = np.array([0, mag, 0])
+                    fg = np.array([0, mag, 0])
 
                 elif direction == 'y':
-                    FG = np.array(np.matmul(TM, np.array([0, mag, 0])))
+                    fg = np.array(
+                        np.matmul(transformation_matrix, np.array([0, mag, 0])))
 
                 elif direction == 'Z':
-                    FG = np.array([0, 0, mag])
+                    fg = np.array([0, 0, mag])
 
                 elif direction == 'z':
-                    FG = np.array(np.matmul(TM, np.array([0, 0, mag])))
+                    fg = np.array(
+                        np.matmul(transformation_matrix, np.array([0, 0, mag])))
+                else:
+                    raise ValueError(
+                        "Load direction must be global ('X', 'Y', 'Z') or local ('x', 'y', 'z')."
+                    )
 
-                # check if the load lands on node i of the sub-member
+                # Check if the load lands on node i of the submember
                 if l1-pointError < location < l1+pointError:
-                    # add the X component of the load
-                    submbr.node_i.addLoad(mag=FG[0], lType='v', direction='X')
+                    # Add the X component of the load
+                    submbr.node_i.add_load(mag=fg[0], lType='v', direction='X')
 
-                    # add the Y component of the load
-                    submbr.node_i.addLoad(mag=FG[1], lType='v', direction='Y')
+                    # Add the Y component of the load
+                    submbr.node_i.add_load(mag=fg[1], lType='v', direction='Y')
 
-                    # add the Z component of the load
-                    submbr.node_i.addLoad(mag=FG[2], lType='v', direction='Z')
+                    # Add the Z component of the load
+                    submbr.node_i.add_load(mag=fg[2], lType='v', direction='Z')
 
-                # check if the load lands on node j of the sub-member
+                # Check if the load lands on node j of the submember
                 elif l2-pointError < location < l2+pointError:
-                    # add the X component of the load
-                    submbr.node_j.addLoad(mag=FG[0], lType='v', direction='X')
+                    # Add the X component of the load
+                    submbr.node_j.add_load(mag=fg[0], lType='v', direction='X')
 
-                    # add the Y component of the load
-                    submbr.node_j.addLoad(mag=FG[1], lType='v', direction='Y')
+                    # Add the Y component of the load
+                    submbr.node_j.add_load(mag=fg[1], lType='v', direction='Y')
 
-                    # add the Z component of the load
-                    submbr.node_j.addLoad(mag=FG[2], lType='v', direction='Z')
+                    # Add the Z component of the load
+                    submbr.node_j.add_load(mag=fg[2], lType='v', direction='Z')
 
-                # the load arbitrarily lands somewhere along the sub-member
+                # Load lands somewhere between the nodes of the submember
                 else:
                     #         P
                     # o-------|-----o
@@ -377,19 +524,19 @@ class Member():
                     b = l2 - location
                     a = submbr.length - b
 
-                    # transform the global force vector to local coordinates
-                    FL = np.matmul(TM, FG)
+                    # Transform the global force vector to local coordinates
+                    FL = np.matmul(transformation_matrix, fg)
 
-                    # extract local axial force
+                    # Extract local axial force
                     axial = FL[0]
 
-                    # extract local shearing force
+                    # Extract local shearing force
                     v = FL[1]
 
-                    # extract local transverse force
+                    # Extract local transverse force
                     t = FL[2]
 
-                    # calculate equivalent nodal actions
+                    # Calculate equivalent nodal actions
                     if submbr.i_release == True and submbr.j_release == False:
                         # instantiate an array to hold equivalent nodal actions
                         f_local = np.zeros([10, 1])
@@ -410,7 +557,7 @@ class Member():
                             (a+submbr.length)/(2*submbr.length**2)
 
                     elif submbr.i_release == False and submbr.j_release == True:
-                        # instantiate an array to hold equivalent nodal actions
+                        # Instantiate an array to hold equivalent nodal actions
                         f_local = np.zeros([10, 1])
 
                         f_local[0, 0] = axial*b/(submbr.length)
@@ -429,28 +576,28 @@ class Member():
                             (b+2*submbr.length)/(2*submbr.length**3)
 
                     else:
-                        # instantiate an array to hold equivalent nodal actions
+                        # Instantiate an array to hold equivalent nodal actions
                         f_local = np.zeros([12, 1])
 
-                        # forces at node i
+                        # Forces at node i
                         f_local[0, 0] = axial*b/(submbr.length)
                         f_local[1, 0] = v*b**2*(3*a+b)/submbr.length**3
                         f_local[2, 0] = t*b**2*(3*a+b)/submbr.length**3
                         f_local[4, 0] = -t*a*b**2/submbr.length**2
                         f_local[5, 0] = -v*a*b**2/submbr.length**2
 
-                        # forces at node j
+                        # Forces at node j
                         f_local[6, 0] = axial*a/(submbr.length)
                         f_local[7, 0] = v*a**2*(a+3*b)/submbr.length**3
                         f_local[8, 0] = t*a**2*(a+3*b)/submbr.length**3
                         f_local[10, 0] = t*a**2*b/submbr.length**2
                         f_local[11, 0] = v*a**2*b/submbr.length**2
 
-                    # transform the local force vector to global reference plane
-                    TM = np.matrix(submbr.rotationMatrix)
-                    f_global = TM.I*f_local
+                    # Transform the local force vector to the global reference plane
+                    transformation_matrix = np.matrix(submbr.rotation_matrix)
+                    f_global = transformation_matrix.I*f_local
 
-                    # add the equivalent nodal forces and moments to each node
+                    # Add the equivalent nodal forces and moments to each node
                     if submbr.i_release == True and submbr.j_release == False:
                         submbr.node_i.Fx += f_global[0, 0]
                         submbr.node_i.Fy += f_global[1, 0]
@@ -557,44 +704,55 @@ class Member():
 
             l1 = l2
 
-    def addTrapLoad(self, Mag1, Mag2, direction, loc1, loc2):
+    def add_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
         """
-        Add an arbitrary trapezoidal load to the model
+        Apply a trapezoidal distributed load along the member.
 
-        Parameters:
-        Mag1:         [float] start magnitude of the distributed load (kips)
-        Mag2:         [float] end magnitude of the distributed load (kips)
-        direction:     [string] global or local direction of the applied load
-        loc1:         [float] start location of the load along member span (%)
-        loc2:         [float] end location of the load along member span (%)
+        Applies a distributed load with linearly varying magnitude over a specified
+        portion of the member span. Handles loading that spans across multiple
+        submembers by calculating equivalent nodal actions for each affected segment.
+
+        :param Mag1: Starting magnitude of the distributed load in kips.
+        :type Mag1: float
+        :param Mag2: Ending magnitude of the distributed load in kips.
+        :type Mag2: float
+        :param direction: Load direction - global ('X', 'Y', 'Z') or local ('x', 'y', 'z').
+        :type direction: str
+        :param loc1: Starting location of load along member span as percentage (0-100%).
+        :type loc1: float
+        :param loc2: Ending location of load along member span as percentage (0-100%).
+        :type loc2: float
+        :returns: None
+        :rtype: None
+        :raises ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
 
-        # convert the start and end locations to feet
+        # Convert the start and end locations to absolute distance
         loc1 = self.length*(loc1/100)
         loc2 = self.length*(loc2/100)
 
-        # calculate the slope of the trapezoidal load
+        # Calculate the slope of the trapezoidal load
         m = (Mag2-Mag1)/(loc2-loc1)
 
-        # instantiate a variable to measure distance along member
+        # Instantiate a variable to measure distance along the member
         l1 = 0
 
-        # iterate through the members submembers
-        for n, submbr in self.submembers.items():
-            # calculate the end location of current submember
+        # Iterate through the member's submembers
+        for _, submbr in self.submembers.items():
+            # Calculate the end location of the current submember
             l2 = l1+submbr.length
 
-            # extract rotation matrix for current submember
-            TM = submbr.rotationMatrix[0:3, 0:3]
+            # Extract rotation matrix for the current submember
+            transformation_matrix = submbr.rotation_matrix[0:3, 0:3]
 
             if l2 < loc1 or l1 > loc2:
-                # the load does not land on the current submember
-                # continue to the next iteration
+                # The load does not land on the current submember
+                # Continue to the next iteration
                 l1 = l2
                 continue
 
-            if l1 <= loc1 and l2 >= loc2:
-                # the load is located entirely on the current submember
+            elif l1 <= loc1 and l2 >= loc2:
+                # The load is located entirely on the current submember
                 w1 = Mag1
                 w2 = Mag2
                 l = submbr.length
@@ -602,8 +760,8 @@ class Member():
                 lw = loc2 - loc1
                 b = l2 - loc2
 
-            if l1 <= loc1 and l2 <= loc2:
-                # the load begins on the current submember
+            elif l1 <= loc1 and l2 <= loc2:
+                # The load begins on the current submember
                 w1 = Mag1
                 w2 = m*(l2-loc1)+Mag1
                 l = submbr.length
@@ -611,8 +769,8 @@ class Member():
                 lw = l2 - loc1
                 b = 0
 
-            if l1 >= loc1 and l2 >= loc2:
-                # the load ends on the current submember
+            elif l1 >= loc1 and l2 >= loc2:
+                # The load ends on the current submember
                 w1 = m*(l1-loc1)+Mag1
                 w2 = Mag2
                 l = submbr.length
@@ -620,8 +778,9 @@ class Member():
                 lw = loc2 - l1
                 b = l2 - loc2
 
-            if l1 >= loc1 and l2 <= loc2:
-                # the load continues over the current submember
+            else:
+                # l1 >= loc1 and l2 <= loc2:
+                # Load continues over the current submember
                 w1 = m*(l1-loc1)+Mag1
                 w2 = m*(l2-loc1)+Mag1
                 l = submbr.length
@@ -629,56 +788,60 @@ class Member():
                 lw = l2 - l1
                 b = 0
 
-            # initialize a global force vector
+            # Initialize a global force vector
             if direction == 'X':
-                FG1 = np.array([w1, 0, 0])
-                FG2 = np.array([w2, 0, 0])
+                fg1 = np.array([w1, 0, 0])
+                fg2 = np.array([w2, 0, 0])
 
             elif direction == 'x':
-                FG1 = np.matmul(TM, np.array([w1, 0, 0]))
-                FG2 = np.matmul(TM, np.array([w2, 0, 0]))
+                fg1 = np.matmul(transformation_matrix, np.array([w1, 0, 0]))
+                fg2 = np.matmul(transformation_matrix, np.array([w2, 0, 0]))
 
             elif direction == 'Y':
-                FG1 = np.array([0, w1, 0])
-                FG2 = np.array([0, w2, 0])
+                fg1 = np.array([0, w1, 0])
+                fg2 = np.array([0, w2, 0])
 
             elif direction == 'y':
-                FG1 = np.matmul(TM, np.array([0, w1, 0]))
-                FG2 = np.matmul(TM, np.array([0, w2, 0]))
+                fg1 = np.matmul(transformation_matrix, np.array([0, w1, 0]))
+                fg2 = np.matmul(transformation_matrix, np.array([0, w2, 0]))
 
             elif direction == 'Z':
-                FG1 = np.array([0, 0, w1])
-                FG2 = np.array([0, 0, w2])
+                fg1 = np.array([0, 0, w1])
+                fg2 = np.array([0, 0, w2])
 
             elif direction == 'z':
-                FG1 = np.matmul(TM, np.array([0, 0, w1]))
-                FG2 = np.matmul(TM, np.array([0, 0, w2]))
+                fg1 = np.matmul(transformation_matrix, np.array([0, 0, w1]))
+                fg2 = np.matmul(transformation_matrix, np.array([0, 0, w2]))
+            else:
+                raise ValueError(
+                    "Force vector must be bound to a global or local axis."
+                )
 
-            # transform the global force vector to local coordinates
-            FL1 = np.matmul(TM, FG1)
-            FL2 = np.matmul(TM, FG2)
+            # Transform the global force vector to local coordinates
+            FL1 = np.matmul(transformation_matrix, fg1)
+            FL2 = np.matmul(transformation_matrix, fg2)
 
-            # extract local axial force
+            # Extract local axial force
             a1 = FL1[0]
             a2 = FL2[0]
 
-            # extract local shearing force
+            # Extract local shearing force
             v1 = FL1[1]
             v2 = FL2[1]
             vd = v2 - v1
             vm = (v1+v2)/2
 
-            # extract local transverse force
+            # Extract local transverse force
             t1 = FL1[2]
             t2 = FL2[2]
             td = t2 - t1
             tm = (t1+t2)/2
 
             if submbr.i_release == False and submbr.j_release == False:
-                # instantiate a local force vector
+                # Instantiate a local force vector
                 f_local = np.zeros([12, 1])
 
-                # calculate the geometric constants
+                # Calculate the geometric constants
                 s1 = 10*((l**2+a**2)*(l+a)-(a**2+b**2)*(a-b)-l*b*(l+b)-a**3)
                 s2 = lw*(l*(2*l+a+b)-3*(a-b)**2-2*a*b)
                 s3 = 120*a*b*(a+lw)+10*lw*(6*a**2+4*l*lw-3*lw**2)
@@ -694,11 +857,11 @@ class Member():
                 f_local[11, 0] = -(lw*(s3*vm+s4*vd)) / \
                     (120*l**2)  # major axis moment
 
-                # forces at node i
-                vj = f_local[7, 0]  # normal shear force at node j
-                tj = f_local[8, 0]  # transverse shear force at node j
-                mj = f_local[10, 0]  # minor axis moment at node j
-                Mj = f_local[11, 0]  # major axis moment at node j
+                # Forces at node i
+                vj = f_local[7, 0]  # Normal shear force at node j
+                tj = f_local[8, 0]  # Transverse shear force at node j
+                mj = f_local[10, 0]  # Minor axis moment at node j
+                Mj = f_local[11, 0]  # Major axis moment at node j
 
                 f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
                 f_local[1, 0] = lw*vm-vj  # normal shear
@@ -708,12 +871,15 @@ class Member():
                 f_local[5, 0] = Mj+vj*l-a*lw*vm - \
                     (lw**2*(2*v2+v1))/6  # major axis moment
 
-            if submbr.i_release == True and submbr.j_release == False:
+            elif submbr.i_release == True and submbr.j_release == False:
+                # Instantiate a local force vector
+                f_local = np.zeros([12, 1])
+
                 s1 = 40*l*(2*l**2-lw**2)+10*lw * \
                     (lw**2-2*b**2)-40*b*(l-a)*(2*l+a)
                 s2 = lw*(3*lw**2-10*l*(lw+2*b)+10*b*(b+lw))
 
-                # forces at node i
+                # Forces at node i
                 f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
                 f_local[1, 0] = (lw*(s1*vm+s2*vd))/(80*l**3)  # normal shear
                 f_local[2, 0] = (lw*(s1*tm+s2*td)) / \
@@ -730,12 +896,16 @@ class Member():
                 f_local[11, 0] = f_local[7, 0]*l-b*lw*vm - \
                     (lw**2*(2*v2+v1))/6  # major axis moment
 
-            if submbr.i_release == False and submbr.j_release == True:
+            else:
+                # Instantiate a local force vector
+                # (submbr.i_release == False and submbr.j_release == True)
+                f_local = np.zeros([12, 1])
+
                 s1 = 40*l*(2*l**2-lw**2)+10*lw * \
                     (lw**2-2*a**2)-40*a*(l-b)*(2*l+b)
                 s2 = lw*(3*lw**2-10*l*(lw+2*a)+10*a*(a+lw))
 
-                # forces at node i
+                # Forces at node i
                 f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
                 f_local[1, 0] = (lw*(s1*vm+s2*vd))/(80*l**3)  # normal shear
                 f_local[2, 0] = (lw*(s1*tm+s2*td)) / \
@@ -745,18 +915,18 @@ class Member():
                 f_local[5, 0] = f_local[1, 0]*l-a*lw*vm - \
                     (lw**2*(2*v2+v1))/6  # major axis moment
 
-                # forces at node j
-                f_local[6, 0] = (a1+a2)*submbr.length/2  # axial
-                f_local[7, 0] = lw*vm-f_local[1, 0]  # normal shear
-                f_local[8, 0] = lw*vm-f_local[2, 0]  # transverse shear
-                f_local[10, 0] = 0  # minor axis moment
-                f_local[11, 0] = 0  # major axis moment
+                # Forces at node j
+                f_local[6, 0] = (a1+a2)*submbr.length/2  # Axial
+                f_local[7, 0] = lw*vm-f_local[1, 0]  # Normal shear
+                f_local[8, 0] = lw*vm-f_local[2, 0]  # Transverse shear
+                f_local[10, 0] = 0  # Minor axis moment
+                f_local[11, 0] = 0  # Major axis moment
 
-            # transform the local force vector to global reference plane
-            TM = np.matrix(submbr.rotationMatrix)
-            f_global = TM.I*f_local
+            # Transform the local force vector to the global reference plane
+            transformation_matrix = np.matrix(submbr.rotation_matrix)
+            f_global = transformation_matrix.I*f_local
 
-            # add the equivalent nodal forces and moments to each node
+            # Add the equivalent nodal forces and moments to each node
             if submbr.i_release == True and submbr.j_release == False:
                 submbr.node_i.Fx += f_global[0, 0]
                 submbr.node_i.Fy += f_global[1, 0]
@@ -861,13 +1031,25 @@ class Member():
 
             l1 = l2
 
-    def secondOrder(self):
-        for submbr in self.submembers.values():
-            # calculate the submember local geometric stiffness matrix
-            KG = submbr.calculateKG()
+    def second_order(self) -> None:
+        """
+        Apply second-order (P-delta) effects to account for geometric nonlinearity.
 
-            # redefine the submember local stiffness matrix
+        Constructs and adds geometric stiffness matrices to all submembers to account
+        for second-order effects including P-delta moments. This modifies the local
+        stiffness matrix of each submember by including the effects of axial forces
+        on bending behavior.
+
+        :returns: None
+        :rtype: None
+        """
+        for submbr in self.submembers.values():
+            # Calculate the submember local geometric stiffness matrix
+            KG = submbr.build_geometric_stiffness_matrix()
+
+            # Redefine the submember local stiffness matrix
             submbr.Kl += KG
 
-            # calculate the submember global geometric stiffness matrix
-            submbr.KG = submbr.TM.T.dot(submbr.Kl).dot(submbr.TM)
+            # Calculate the submember global geometric stiffness matrix
+            submbr.KG = submbr.transformation_matrix.T.dot(
+                submbr.Kl).dot(submbr.transformation_matrix)

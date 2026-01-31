@@ -92,7 +92,7 @@ class Solver():
                 node_ID_j = submbr.node_j.node_ID
                 i_release = submbr.i_release
                 j_release = submbr.j_release
-                KG = submbr.KG
+                KG = submbr.Kg
                 self.AddMemberToKp(node_ID_i, node_ID_j,
                                    i_release, j_release, KG)
 
@@ -143,7 +143,7 @@ class Solver():
                     ]).T
 
                     submbr.results['displacements'] = np.matmul(
-                        submbr.TM, mbrDisplacements)
+                        submbr.transformation_matrix, mbrDisplacements)
                     forces = np.matmul(
                         submbr.Kl, submbr.results['displacements'])
 
@@ -177,7 +177,7 @@ class Solver():
                     ]).T
 
                     submbr.results['displacements'] = np.matmul(
-                        submbr.TM, mbrDisplacements)
+                        submbr.transformation_matrix, mbrDisplacements)
                     forces = np.matmul(
                         submbr.Kl, submbr.results['displacements'])
 
@@ -209,7 +209,7 @@ class Solver():
                     ]).T
 
                     submbr.results['displacements'] = np.matmul(
-                        submbr.TM, mbrDisplacements)
+                        submbr.transformation_matrix, mbrDisplacements)
                     forces = np.matmul(
                         submbr.Kl, submbr.results['displacements'])
 
@@ -237,7 +237,7 @@ class Solver():
                     ]).T
 
                     submbr.results['displacements'] = np.matmul(
-                        submbr.TM, mbrDisplacements)
+                        submbr.transformation_matrix, mbrDisplacements)
                     forces = np.matmul(
                         submbr.Kl, submbr.results['displacements'])
 
