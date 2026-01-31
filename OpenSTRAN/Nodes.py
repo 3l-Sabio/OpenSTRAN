@@ -35,7 +35,7 @@ class Nodes():
         """
         return asdict(self)
 
-    def addNode(self, x: float, y: float, z: float, mesh_node: bool = False) -> Node:
+    def add_node(self, x: float, y: float, z: float, mesh_node: bool = False) -> Node:
         """
         Add a node to the model at the specified coordinates.
 
@@ -49,12 +49,12 @@ class Nodes():
             Node: The added or existing node object.
 
         Examples:
-            N1 = frame.nodes.addNode(0,0,0)
-            N2 = frame.nodes.addNode(0,10,0)
-            N3 = frame.nodes.addNode(10,10,0)
-            N4 = frame.nodes.addNode(10,0,0)
+            N1 = frame.nodes.add_node(0,0,0)
+            N2 = frame.nodes.add_node(0,10,0)
+            N3 = frame.nodes.add_node(10,10,0)
+            N4 = frame.nodes.add_node(10,0,0)
         """
-        node: Node | None = self.findNode(x, y, z)
+        node: Node | None = self.find_node(x, y, z)
         if node is None:
             self.count += 1
             self.x.append(x)
@@ -70,7 +70,7 @@ class Nodes():
             self.nodes[self.count] = node
         return node
 
-    def findNode(self, x: float, y: float, z: float) -> Node | None:
+    def find_node(self, x: float, y: float, z: float) -> Node | None:
         """
         Find a node in the model at the specified coordinates.
 

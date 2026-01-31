@@ -93,7 +93,7 @@ class Node():
         """
         return asdict(self)
 
-    def addRestraint(self, restraint: list[int]) -> None:
+    def add_restraint(self, restraint: list[int]) -> None:
         """
         Adds restraint to the nodal degrees of freedom.
 
@@ -125,7 +125,7 @@ class Node():
                 msg6=str("Roller in the x direction: [0,1,1,0,0,0]")
             ))
 
-    def addLoad(self, mag: float, lType: str = 'moment', direction: str = 'y') -> None:
+    def add_load(self, mag: float, lType: str = 'moment', direction: str = 'y') -> None:
         """
         Adds a load to the node.
 
