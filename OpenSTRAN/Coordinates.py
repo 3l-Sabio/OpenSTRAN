@@ -8,15 +8,18 @@ from typing import Self, Any
 
 @dataclass(slots=True)
 class Coordinate():
-    """
-    A class representing a 3D coordinate in space.
+    """A class representing a 3D coordinate in space.
 
-    Attributes:
-        x (float): The x-coordinate in feet.
-        y (float): The y-coordinate in feet.
-        z (float): The z-coordinate in feet.
-        coordinates (tuple[float, float, float]): A tuple containing the (x, y, z) coordinates.
-        vector (numpy.ndarray): A numpy array representation of the coordinate vector.
+    :ivar x: The x-coordinate in feet
+    :type x: float
+    :ivar y: The y-coordinate in feet
+    :type y: float
+    :ivar z: The z-coordinate in feet
+    :type z: float
+    :ivar coordinates: A tuple containing the (x, y, z) coordinates
+    :type coordinates: tuple[float, float, float]
+    :ivar vector: A numpy array representation of the coordinate vector
+    :type vector: numpy.ndarray
     """
     x: float
     y: float
@@ -32,23 +35,20 @@ class Coordinate():
         self.vector = array([self.x, self.y, self.z])
 
     def properties(self) -> dict[str, Any]:
-        """
-        Return the dataclass properties as a dictionary.
+        """Return the dataclass properties as a dictionary.
 
-        Returns:
-            Dict[str, Any]: Dictionary of this instance's fields.
+        :returns: Dictionary of this instance's fields
+        :rtype: dict[str, Any]
         """
         return asdict(self)
 
     @classmethod
     def from_tuple(cls, coordinates: tuple[float, float, float]) -> Self:
-        """
-        Create a `Coordinate` instance from a tuple of x, y, z values.
+        """Create a Coordinate instance from a tuple of x, y, z values.
 
-        :param coordinates: A tuple containing (x, y, z) coordinate values.
+        :param coordinates: A tuple containing (x, y, z) coordinate values
         :type coordinates: tuple[float, float, float]
-
-        :returns: A new `Coordinate` instance.
+        :returns: A new Coordinate instance
         :rtype: Self
         """
         x = coordinates[0]

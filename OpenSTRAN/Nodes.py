@@ -8,16 +8,20 @@ from typing import Any
 
 @dataclass(slots=True)
 class Nodes():
-    """
-    A container class for managing user-defined node objects in the structural model.
+    """A container class for managing user-defined node objects in the structural model.
 
-    Attributes:
-        plane (str or None): The plane associated with the nodes.
-        count (int): The total number of nodes added.
-        nodes (dict[int, Node]): Dictionary mapping node IDs to Node objects.
-        x (list[float]): List of x-coordinates.
-        y (list[float]): List of y-coordinates.
-        z (list[float]): List of z-coordinates.
+    :ivar plane: The plane constraint associated with the nodes
+    :type plane: str | None
+    :ivar count: The total number of nodes added
+    :type count: int
+    :ivar nodes: Dictionary mapping node IDs to Node objects
+    :type nodes: dict[int, Node]
+    :ivar x: List of x-coordinates
+    :type x: list[float]
+    :ivar y: List of y-coordinates
+    :type y: list[float]
+    :ivar z: List of z-coordinates
+    :type z: list[float]
     """
     plane: str | None = None
     count: int = 0
@@ -27,32 +31,33 @@ class Nodes():
     z: list[float] = field(default_factory=list[float])
 
     def properties(self) -> dict[str, Any]:
-        """
-        Return the dataclass properties as a dictionary.
+        """Return the dataclass properties as a dictionary.
 
-        Returns:
-            Dict[str, Any]: Dictionary of this instance's fields.
+        :returns: Dictionary of this instance's fields
+        :rtype: dict[str, Any]
         """
         return asdict(self)
 
     def add_node(self, x: float, y: float, z: float, mesh_node: bool = False) -> Node:
-        """
-        Add a node to the model at the specified coordinates.
+        """Add a node to the model at the specified coordinates.
 
-        Args:
-            x (float): x coordinate in feet
-            y (float): y coordinate in feet
-            z (float): z coordinate in feet
-            mesh_node (bool, optional): Whether this is a mesh node. Defaults to False.
+        :param x: x-coordinate in feet
+        :type x: float
+        :param y: y-coordinate in feet
+        :type y: float
+        :param z: z-coordinate in feet
+        :type z: float
+        :param mesh_node: Whether this is a mesh node. Defaults to False.
+        :type mesh_node: bool
+        :returns: The added or existing node object
+        :rtype: Node
 
-        Returns:
-            Node: The added or existing node object.
+        :Example:
 
-        Examples:
-            N1 = frame.nodes.add_node(0,0,0)
-            N2 = frame.nodes.add_node(0,10,0)
-            N3 = frame.nodes.add_node(10,10,0)
-            N4 = frame.nodes.add_node(10,0,0)
+            >>> N1 = frame.nodes.add_node(0, 0, 0)
+            >>> N2 = frame.nodes.add_node(0, 10, 0)
+            >>> N3 = frame.nodes.add_node(10, 10, 0)
+            >>> N4 = frame.nodes.add_node(10, 0, 0)
         """
         node: Node | None = self.find_node(x, y, z)
         if node is None:
@@ -71,22 +76,21 @@ class Nodes():
         return node
 
     def find_node(self, x: float, y: float, z: float) -> Node | None:
+        """Find a node in the model at the specified coordinates.
+
+        :param x: x-coordinate in feet
+        :type x: float
+        :param y: y-coordinate in feet
+        :type y: float
+        :param z: z-coordinate in feet
+        :type z: float
+        :returns: The matching node object if found, None otherwise
+        :rtype: Node | None
         """
-        Find a node in the model at the specified coordinates.
-
-        Args:
-            x (float): x coordinate in feet
-            y (float): y coordinate in feet
-            z (float): z coordinate in feet
-
-        Returns:
-            Node or None: The matching node object if found, None otherwise.
-        """
-
-        # define a floating point error
+        # Define a floating point error tolerance.
         pointError: float = 1*10**-6
 
-        # iterate through the model nodes
+        # Iterate through the model nodes.
         for node in self.nodes.values():
             x_e: float = node.coordinates.x
             y_e: float = node.coordinates.y

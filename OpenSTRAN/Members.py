@@ -9,13 +9,14 @@ from typing import Any
 
 @dataclass(slots=True)
 class Members():
-    """
-    Object that holds the member objects
+    """Container class for managing member (element) objects.
 
-    Attributes:
-        nodes (Nodes): Reference to the global `Nodes` collection.
-        count (int): Number of members added to the collection.
-        members (Dict[int, Member]): Mapping of member id to `Member`.
+    :ivar nodes: Reference to the global Nodes collection
+    :type nodes: Nodes
+    :ivar count: Number of members added to the collection
+    :type count: int
+    :ivar members: Mapping of member ID to Member object
+    :type members: dict[int, Member]
     """
     nodes: Nodes
     count: int = 0
@@ -24,8 +25,8 @@ class Members():
     def properties(self) -> dict[str, Any]:
         """Return the dataclass properties as a dictionary.
 
-        Returns:
-            Dict[str, Any]: Dictionary of this instance's fields.
+        :returns: Dictionary of this instance's fields
+        :rtype: dict[str, Any]
         """
         return asdict(self)
 
@@ -45,42 +46,41 @@ class Members():
         bracing: str = "continuous",
         shape: str = "W12x14",
     ) -> Member:
-        """Method to add member objects to the model.
+        """Add a member to the model.
 
-        :param node_i: Start `Node` of the member.
+        :param node_i: Start node of the member
         :type node_i: Node
-        :param node_j: End `Node` of the member.
+        :param node_j: End node of the member
         :type node_j: Node
-        :param i_release: True if start node is released (pinned).
+        :param i_release: True if start node is released (pinned). Defaults to False.
         :type i_release: bool
-        :param j_release: True if end node is released (pinned).
+        :param j_release: True if end node is released (pinned). Defaults to False.
         :type j_release: bool
-        :param E: Young's Modulus [ksi].
+        :param E: Young's modulus in ksi. Defaults to 29000.0.
         :type E: float
-        :param Ixx: Moment of inertia about the strong axis [in^4].
+        :param Ixx: Moment of inertia about the strong axis in in^4. Defaults to 88.6.
         :type Ixx: float
-        :param Iyy: Moment of inertia about the weak axis [in^4].
+        :param Iyy: Moment of inertia about the weak axis in in^4. Defaults to 2.36.
         :type Iyy: float
-        :param A: Cross-sectional area [in^2].
+        :param A: Cross-sectional area in in^2. Defaults to 4.16.
         :type A: float
-        :param G: Shear Modulus [ksi].
+        :param G: Shear modulus in ksi. Defaults to 12000.0.
         :type G: float
-        :param J: Polar moment of inertia [in^4].
+        :param J: Polar moment of inertia in in^4. Defaults to 0.0704.
         :type J: float
-        :param mesh: Number of discretizations per member.
+        :param mesh: Number of discretizations per member. Defaults to 50.
         :type mesh: int
-        :param bracing: Bracing type (e.g., "continuous").
+        :param bracing: Bracing type (e.g., "continuous"). Defaults to "continuous".
         :type bracing: str
-        :param shape: Section shape name (e.g., "W12x14").
+        :param shape: Section shape name (e.g., "W12x14"). Defaults to "W12x14".
         :type shape: str
-
-        :returns: The created `Member` instance.
+        :returns: The created Member instance
         :rtype: Member
 
-        Usage example::
+        :Example:
 
-            M1 = frame.members.addMember(N1, N2)
-            M2 = frame.members.addMember(N2, N3)
+            >>> M1 = frame.members.addMember(N1, N2)
+            >>> M2 = frame.members.addMember(N2, N3)
         """
         self.count += 1
 

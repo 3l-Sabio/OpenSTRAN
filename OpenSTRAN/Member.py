@@ -78,8 +78,7 @@ class Member():
         default_factory=dict[int, SubMember])
 
     def __post_init__(self) -> None:
-        """
-        Initialize the member after dataclass instantiation.
+        """Initialize the member after dataclass instantiation.
 
         Calculates the member length and discretizes the member into submembers
         based on the specified mesh parameter. Creates connectivity between
@@ -147,17 +146,16 @@ class Member():
                 )
 
     def calculate_length(self, node_i: Node, node_j: Node) -> float:
-        """
-        Calculate the length of the member using the Euclidean distance formula.
+        """Calculate the length of the member using the Euclidean distance formula.
 
         Computes the 3D distance between two nodes based on their coordinate
         positions in the global reference frame.
 
-        :param node_i: Start node of the member.
+        :param node_i: Start node of the member
         :type node_i: Node
-        :param node_j: End node of the member.
+        :param node_j: End node of the member
         :type node_j: Node
-        :returns: The length of the member in inches.
+        :returns: The length of the member in inches
         :rtype: float
         """
         # Calculate the x, y and z vector components of the member
@@ -168,36 +166,34 @@ class Member():
         return (sqrt(dx**2 + dy**2 + dz**2))
 
     def properties(self) -> dict[str, Any]:
-        """
-        Return all member properties as a dictionary.
+        """Return all member properties as a dictionary.
 
         Converts the dataclass instance into a dictionary representation containing
         all field names and their current values.
 
-        :returns: Dictionary containing all member attributes and their values.
+        :returns: Dictionary containing all member attributes and their values
         :rtype: dict[str, Any]
         """
         return asdict(self)
 
     def add_mesh(self, nodes: Nodes, node_i: Node, node_j: Node, mesh: int, l: float) -> list[Node]:
-        """
-        Create intermediate mesh nodes along the member span.
+        """Create intermediate mesh nodes along the member span.
 
         Generates evenly spaced nodes along the member length based on the mesh
         parameter. These nodes are used as intermediary connection points for
         submembers in the discretization process.
 
-        :param nodes: Collection of nodes in the model.
+        :param nodes: Collection of nodes in the model
         :type nodes: Nodes
-        :param node_i: Start node of the member.
+        :param node_i: Start node of the member
         :type node_i: Node
-        :param node_j: End node of the member.
+        :param node_j: End node of the member
         :type node_j: Node
-        :param mesh: Number of equal segments to divide the member into.
+        :param mesh: Number of equal segments to divide the member into
         :type mesh: int
-        :param l: Total length of the member in inches.
+        :param l: Total length of the member in inches
         :type l: float
-        :returns: List of intermediate mesh nodes along the member.
+        :returns: List of intermediate mesh nodes along the member
         :rtype: list[Node]
         """
         # Instantiate an array to hold the mesh nodes
@@ -236,32 +232,31 @@ class Member():
         G: float,
         J: float
     ) -> None:
-        """
-        Add a submember to the member collection.
+        """Add a submember to the member collection.
 
         Creates a new submember element connecting two nodes with specified
         boundary conditions and material properties. The submember is stored
         in the submembers dictionary using an auto-incremented counter.
 
-        :param node_i: Start node of the submember.
+        :param node_i: Start node of the submember
         :type node_i: Node
-        :param node_j: End node of the submember.
+        :param node_j: End node of the submember
         :type node_j: Node
-        :param i_release: Release condition at start node (False = fixed, True = pinned).
+        :param i_release: Release condition at start node (False = fixed, True = pinned)
         :type i_release: bool
-        :param j_release: Release condition at end node (False = fixed, True = pinned).
+        :param j_release: Release condition at end node (False = fixed, True = pinned)
         :type j_release: bool
-        :param E: Young's modulus in ksi.
+        :param E: Young's modulus in ksi
         :type E: float
-        :param Ixx: Strong axis moment of inertia in in^4.
+        :param Ixx: Strong axis moment of inertia in in^4
         :type Ixx: float
-        :param Iyy: Weak axis moment of inertia in in^4.
+        :param Iyy: Weak axis moment of inertia in in^4
         :type Iyy: float
-        :param A: Cross-sectional area in in^2.
+        :param A: Cross-sectional area in in^2
         :type A: float
-        :param G: Shear modulus in ksi.
+        :param G: Shear modulus in ksi
         :type G: float
-        :param J: Polar moment of inertia in in^4.
+        :param J: Polar moment of inertia in in^4
         :type J: float
         :returns: None
         :rtype: None

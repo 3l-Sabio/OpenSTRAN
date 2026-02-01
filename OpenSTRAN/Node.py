@@ -7,39 +7,30 @@ from typing import Any
 
 @dataclass(slots=True)
 class Node():
-    """
-    A class representing a node in the structural analysis model.
+    """A class representing a node in the structural analysis model.
 
-    Attributes:
-        coordinates (Coordinate): The coordinate object defining the node's position.
-        node_ID (int): Unique identifier for the node.
-        mesh_node (bool): Indicates if this is a mesh node. Defaults to False.
-        Fx (float): Applied force in the x-direction in kips. Defaults to 0.0.
-        Fy (float): Applied force in the y-direction in kips. Defaults to 0.0.
-        Fz (float): Applied force in the z-direction in kips. Defaults to 0.0.
-        Mx (float): Applied moment about the x-axis in kip-ft. Defaults to 0.0.
-        My (float): Applied moment about the y-axis in kip-ft. Defaults to 0.0.
-        Mz (float): Applied moment about the z-axis in kip-ft. Defaults to 0.0.
-        Ux (float): Displacement in the x-direction in feet. Defaults to 0.0.
-        Uy (float): Displacement in the y-direction in feet. Defaults to 0.0.
-        Uz (float): Displacement in the z-direction in feet. Defaults to 0.0.
-        phi_x (float): Rotation about the x-axis in radians. Defaults to 0.0.
-        phi_y (float): Rotation about the y-axis in radians. Defaults to 0.0.
-        phi_z (float): Rotation about the z-axis in radians. Defaults to 0.0.
-        eFx (float): Effective force in the x-direction in kips. Defaults to 0.0.
-        eFy (float): Effective force in the y-direction in kips. Defaults to 0.0.
-        eFz (float): Effective force in the z-direction in kips. Defaults to 0.0.
-        eMx (float): Effective moment about the x-axis in kip-ft. Defaults to 0.0.
-        eMy (float): Effective moment about the y-axis in kip-ft. Defaults to 0.0.
-        eMz (float): Effective moment about the z-axis in kip-ft. Defaults to 0.0.
-        Rx (float): Reaction force in the x-direction in kips. Defaults to 0.0.
-        Ry (float): Reaction force in the y-direction in kips. Defaults to 0.0.
-        Rz (float): Reaction force in the z-direction in kips. Defaults to 0.0.
-        Rmx (float): Reaction moment about the x-axis in kip-ft. Defaults to 0.0.
-        Rmy (float): Reaction moment about the y-axis in kip-ft. Defaults to 0.0.
-        Rmz (float): Reaction moment about the z-axis in kip-ft. Defaults to 0.0.
-        plane (str | None): The plane associated with the node. Defaults to None.
-        restraint (List[int]): List of 6 integers indicating restrained degrees of freedom [Ux, Uy, Uz, φx, φy, φz]. Defaults to [0, 0, 0, 0, 0, 0].
+    :ivar coordinates: The coordinate object defining the node's position
+    :type coordinates: Coordinate
+    :ivar node_ID: Unique identifier for the node
+    :type node_ID: int
+    :ivar mesh_node: Indicates if this is a mesh node. Defaults to False
+    :type mesh_node: bool
+    :ivar Fx: Applied force in the x-direction in kips. Defaults to 0.0
+    :type Fx: float
+    :ivar Fy: Applied force in the y-direction in kips. Defaults to 0.0
+    :type Fy: float
+    :ivar Fz: Applied force in the z-direction in kips. Defaults to 0.0
+    :type Fz: float
+    :ivar Mx: Applied moment about the x-axis in kip-ft. Defaults to 0.0
+    :type Mx: float
+    :ivar My: Applied moment about the y-axis in kip-ft. Defaults to 0.0
+    :type My: float
+    :ivar Mz: Applied moment about the z-axis in kip-ft. Defaults to 0.0
+    :type Mz: float
+    :ivar restraint: List of 6 integers indicating restrained degrees of freedom [Ux, Uy, Uz, φx, φy, φz]. Defaults to [0, 0, 0, 0, 0, 0]
+    :type restraint: list[int]
+    :ivar plane: The plane associated with the node. Defaults to None
+    :type plane: str | None
     """
     coordinates: Coordinate
     node_ID: int
@@ -72,8 +63,9 @@ class Node():
     restraint: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0, 0])
 
     def __post_init__(self) -> None:
-        """
-        Post-initialization method to set default restraints based on the plane.
+        """Set default restraints based on the plane constraint.
+
+        If a plane is specified, sets the appropriate out-of-plane restraints.
         """
         if self.plane is None:
             return
@@ -85,28 +77,25 @@ class Node():
             self.restraint = [0, 1, 0, 1, 0, 1]
 
     def properties(self) -> dict[str, Any]:
-        """
-        Return the dataclass properties as a dictionary.
+        """Return the dataclass properties as a dictionary.
 
-        Returns:
-            Dict[str, Any]: Dictionary of this instance's fields.
+        :returns: Dictionary of this instance's fields
+        :rtype: dict[str, Any]
         """
         return asdict(self)
 
     def add_restraint(self, restraint: list[int]) -> None:
-        """
-        Adds restraint to the nodal degrees of freedom.
+        """Add restraint to the nodal degrees of freedom.
 
-        Args:
-            restraint (List[int]): List of 6 integers (0 or 1) indicating which degrees of freedom are restrained.
-                Format: [Ux, Uy, Uz, φx, φy, φz], where 1 means restrained and 0 means free.
-                Examples:
-                - Pinned node: [1, 1, 1, 0, 0, 0]
-                - Fixed node: [1, 1, 1, 1, 1, 1]
-                - Roller in x-direction: [0, 1, 1, 0, 0, 0]
-
-        Raises:
-            ValueError: If restraint is not a list of exactly 6 integers, each being 0 or 1.
+        :param restraint: List of 6 integers (0 or 1) indicating which degrees of freedom are restrained.
+            Format: [Ux, Uy, Uz, φx, φy, φz], where 1 means restrained and 0 means free.
+            Examples:
+            
+            - Pinned node: [1, 1, 1, 0, 0, 0]
+            - Fixed node: [1, 1, 1, 1, 1, 1]
+            - Roller in x-direction: [0, 1, 1, 0, 0, 0]
+        :type restraint: list[int]
+        :raises ValueError: If restraint is not a list of exactly 6 integers, each being 0 or 1
         """
         # check the user defined list is properly formatted
         if type(restraint) == list and len(restraint) == 6 and restraint == [n for n in restraint if n in [0, 1]]:
@@ -126,14 +115,15 @@ class Node():
             ))
 
     def add_load(self, mag: float, lType: str = 'moment', direction: str = 'y') -> None:
-        """
-        Adds a load to the node.
+        """Add a load to the node.
 
-        Args:
-            mag (float): Magnitude of the load. Units are kips for forces and kip-ft for moments.
-            lType (str): Type of load. Either 'moment' or 'force'. Defaults to 'moment'.
-            direction (str): Direction of the load. 'X', 'Y', or 'Z'. Defaults to 'y'.
-                Note: For moments, the magnitude is multiplied by 12 (converting to inch-kips?).
+        :param mag: Magnitude of the load. Units are kips for forces and kip-ft for moments.
+        :type mag: float
+        :param lType: Type of load. Either 'moment' or 'force'. Defaults to 'moment'.
+        :type lType: str
+        :param direction: Direction of the load. 'X', 'Y', or 'Z'. Defaults to 'y'.
+        :type direction: str
+        :note: For moments, the magnitude is multiplied by 12 (kip-in to kip-ft conversion)
         """
 
         if lType == 'moment':

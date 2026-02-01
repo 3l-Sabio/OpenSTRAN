@@ -11,28 +11,41 @@ from typing import Any
 
 @dataclass(slots=True)
 class SubMember():
-    """
-    3D space-frame submember between mesh nodes.
+    """A 3D space-frame submember between mesh nodes.
 
-    A thin wrapper representing a discretized sub-element between two
-    mesh nodes. Contains geometry, section properties, and methods to
-    build local and geometric stiffness matrices.
+    A discretized sub-element between two mesh nodes containing geometry,
+    section properties, and methods to build local and geometric stiffness matrices.
 
-    Attributes:
-        node_i (Node): Start node of the submember.
-        node_j (Node): End node of the submember.
-        i_release (bool): Release (pinned) flag at the start node.
-        j_release (bool): Release (pinned) flag at the end node.
-        E (float): Young's modulus.
-        Ixx (float): Moment of inertia about the strong axis.
-        Iyy (float): Moment of inertia about the weak axis.
-        A (float): Cross-sectional area.
-        G (float): Shear modulus.
-        J (float): Polar moment of inertia.
-        length (float): Submember length (computed).
-        rotation_matrix (np.ndarray): Rotation matrix from local to global.
-        Kl (np.ndarray): Local stiffness matrix.
-        KG (np.ndarray): Global stiffness matrix.
+    :ivar node_i: Start node of the submember
+    :type node_i: Node
+    :ivar node_j: End node of the submember
+    :type node_j: Node
+    :ivar i_release: Release (pinned) flag at the start node
+    :type i_release: bool
+    :ivar j_release: Release (pinned) flag at the end node
+    :type j_release: bool
+    :ivar E: Young's modulus
+    :type E: float
+    :ivar Ixx: Moment of inertia about the strong axis
+    :type Ixx: float
+    :ivar Iyy: Moment of inertia about the weak axis
+    :type Iyy: float
+    :ivar A: Cross-sectional area
+    :type A: float
+    :ivar G: Shear modulus
+    :type G: float
+    :ivar J: Polar moment of inertia
+    :type J: float
+    :ivar length: Submember length (computed)
+    :type length: float
+    :ivar rotation_matrix: Rotation matrix from local to global coordinates
+    :type rotation_matrix: numpy.ndarray
+    :ivar transformation_matrix: Transformation matrix for coordinate conversion
+    :type transformation_matrix: numpy.ndarray
+    :ivar Kl: Local stiffness matrix
+    :type Kl: numpy.ndarray
+    :ivar Kg: Global stiffness matrix
+    :type Kg: numpy.ndarray
     """
     node_i: Node
     node_j: Node
@@ -55,40 +68,21 @@ class SubMember():
     Kg: np.ndarray = field(init=False)
 
     def properties(self) -> dict[str, Any]:
-        """
-        Return all submember properties as a dictionary.
+        """Return all submember properties as a dictionary.
 
         Converts the dataclass instance into a dictionary representation containing
         all field names and their current values.
 
-        :returns: Dictionary containing all member attributes and their values.
+        :returns: Dictionary containing all member attributes and their values
         :rtype: dict[str, Any]
         """
         return asdict(self)
 
     def __post_init__(self) -> None:
-        """Initialize a `SubMember`.
+        """Initialize a SubMember instance.
 
-        :param node_i: Start node of the submember.
-        :type node_i: Node
-        :param node_j: End node of the submember.
-        :type node_j: Node
-        :param i_release: True if the start node is released (pinned).
-        :type i_release: bool
-        :param j_release: True if the end node is released (pinned).
-        :type j_release: bool
-        :param E: Young's modulus.
-        :type E: float
-        :param Ixx: Strong-axis moment of inertia.
-        :type Ixx: float
-        :param Iyy: Weak-axis moment of inertia.
-        :type Iyy: float
-        :param A: Cross-sectional area.
-        :type A: float
-        :param G: Shear modulus.
-        :type G: float
-        :param J: Polar moment of inertia.
-        :type J: float
+        Calculates geometric properties and initializes equivalent nodal actions (ENAs)
+        and results dictionaries.
         """
         self.ENAs = {
             'axial': [0, 0],
