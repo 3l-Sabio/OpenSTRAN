@@ -7,48 +7,85 @@ from .Solver import Solver
 
 class Model():
     """
-    3D Space Frame Model
+    3D space frame structural model.
 
-    The model neglects deformations due to transverse shear stresses
-    and torsional warping. The model does not account for such
-    deformations under the premise that torsional effects are generally
-    negligible in typical civil engineering practice.
+    This class represents a three-dimensional space frame for finite element analysis.
+    The model neglects deformations due to transverse shear stresses and torsional warping,
+    operating under the assumption that such effects are negligible in typical civil
+    engineering applications.
 
-    OPTIONAL PARAMETERS:
-    plane = 'xy' - defines a model constrained to the X-Y plane
-    plane = 'yz' - defines a model constrained to the Y-Z plane
-    plane = 'xz' - defines a model constrained to the X-Z plane
+    :param plane: Constrains the model to a two-dimensional plane. Valid values are 'xy',
+        'yz', or 'xz'. If None, the model is fully three-dimensional.
+    :type plane: str | None
+    :ivar nodes: Collection of nodes in the structure
+    :type nodes: Nodes
+    :ivar members: Collection of members (elements) in the structure
+    :type members: Members
+    :ivar solver: Solver instance for performing structural analysis
+    :type solver: Solver
 
-    no definition of a plane indicates the model is not restrained to a
-    two-dimensional plane.
+    :Example:
 
-    USAGE:
-
-    import OpenStruct
-    2Dframe = OpenStruct.Model(plane='xy')
-    3Dframe = OpenStruct.Model()
+        >>> import OpenSTRAN
+        >>> frame_2d = OpenSTRAN.Model(plane='xy')
+        >>> frame_3d = OpenSTRAN.Model()
     """
 
-    def __init__(self, plane=None):
+    def __init__(self, plane: str | None = None) -> None:
+        """
+        Initialize a structural model.
+
+        :param plane: Plane constraint for 2D models ('xy', 'yz', or 'xz').
+            Defaults to None for 3D models.
+        :type plane: str | None
+        """
         self.nodes = Nodes(plane)
         self.members = Members(self.nodes)
         self.solver = Solver()
 
-    def solve(self):
+    def solve(self) -> None:
+        """Solve the structural system and compute reactions and member forces.
+
+        This method performs a complete finite element analysis including:
+        
+        - Assembly and solution of the global stiffness system
+        - Calculation of nodal reactions at restrained DOFs
+        - Determination of member forces and local extrema
+
+        :returns: None
+        :rtype: None
+        """
         self.solver.solve(self.nodes, self.members)
         self.maxReactions()
         self.maxMbrForces()
 
-    def maxReactions(self):
-        Rx = []
-        Ry = []
-        Rz = []
-        Rmx = []
-        Rmy = []
-        Rmz = []
+    def maxReactions(self) -> None:
+        """Calculate maximum reaction forces and moments at restrained nodes.
+
+        Computes the maximum absolute values of reaction forces and moments
+        across all support nodes in the structure.
+
+        :returns: None
+        :rtype: None
+        
+        Sets the following instance attributes:
+        
+        - Rx_max: Maximum X-direction reaction force
+        - Ry_max: Maximum Y-direction reaction force
+        - Rz_max: Maximum Z-direction reaction force
+        - Rmx_max: Maximum X-direction reaction moment
+        - Rmy_max: Maximum Y-direction reaction moment
+        - Rmz_max: Maximum Z-direction reaction moment
+        """
+        Rx: list[float] = []
+        Ry: list[float] = []
+        Rz: list[float] = []
+        Rmx: list[float] = []
+        Rmy: list[float] = []
+        Rmz: list[float] = []
 
         for node in self.nodes.nodes.values():
-            if node.meshNode != False:
+            if node.mesh_node != False:
                 Rx.append(node.Rx)
                 Ry.append(node.Ry)
                 Rz.append(node.Rz)
@@ -63,13 +100,31 @@ class Model():
         self.Rmy_max = abs(max(Rmy, key=lambda x: abs(x)))
         self.Rmz_max = abs(max(Rmz, key=lambda x: abs(x)))
 
-    def maxMbrForces(self):
-        axial = []
-        torque = []
-        Vy = []
-        Vz = []
-        Mzz = []
-        Myy = []
+    def maxMbrForces(self) -> None:
+        """Calculate maximum member forces and identify local extrema.
+
+        Computes the maximum values for all member internal forces (axial, shear, torsion,
+        and bending moments) and identifies their local maxima and minima distributions
+        along members.
+
+        :returns: None
+        :rtype: None
+        
+        Sets the following instance attributes:
+        
+        - axial_max, axial_maxima, axial_minima: Axial force results
+        - torque_max, torque_maxima, torque_minima: Torsional moment results
+        - Vy_max, Vy_maxima, Vy_minima: Y-direction shear force results
+        - Vz_max, Vz_maxima, Vz_minima: Z-direction shear force results
+        - Mzz_max, Mzz_maxima, Mzz_minima: Major axis bending moment results
+        - Myy_max, Myy_maxima, Myy_minima: Minor axis bending moment results
+        """
+        axial: list[float] = []
+        torque: list[float] = []
+        Vy: list[float] = []
+        Vz: list[float] = []
+        Mzz: list[float] = []
+        Myy: list[float] = []
 
         for mbr in self.members.members.values():
             for submbr in mbr.submembers.values():
@@ -110,8 +165,19 @@ class Model():
         self.Myy_maxima = self.localMaxima(Myy)
         self.Myy_minima = self.localMinima(Myy)
 
-    def localMaxima(self, forces):
-        maxima = [False for force in forces]
+    def localMaxima(self, forces: list[float]) -> list[bool]:
+        """Identify local maxima in a force distribution.
+
+        Determines which points in the force distribution represent local maxima
+        by comparing adjacent values, accounting for numerical precision with
+        near-equal comparisons.
+
+        :param forces: List of force values along a member or structure
+        :type forces: list[float]
+        :returns: Boolean list indicating local maxima positions
+        :rtype: list[bool]
+        """
+        maxima = [False for _ in forces]
         length = len(forces)-1
         for i, force in enumerate(forces):
             if i == 0:
@@ -138,8 +204,19 @@ class Model():
                     continue
         return (maxima)
 
-    def localMinima(self, forces):
-        minima = [False for force in forces]
+    def localMinima(self, forces: list[float]) -> list[bool]:
+        """Identify local minima in a force distribution.
+
+        Determines which points in the force distribution represent local minima
+        by comparing adjacent values, accounting for numerical precision with
+        near-equal comparisons.
+
+        :param forces: List of force values along a member or structure
+        :type forces: list[float]
+        :returns: Boolean list indicating local minima positions
+        :rtype: list[bool]
+        """
+        minima = [False for _ in forces]
         length = len(forces)-1
         for i, force in enumerate(forces):
             if i == 0:
@@ -166,11 +243,19 @@ class Model():
                     continue
         return (minima)
 
-    def reactions(self):
+    def reactions(self) -> None:
+        """Print nodal reactions to console.
+
+        Displays all reaction forces (Rx, Ry, Rz) and reaction moments (Mx, My, Mz)
+        at all restrained support nodes in a formatted table.
+
+        :returns: None
+        :rtype: None
+        """
         print('Nodal Reactions')
         for node in self.nodes.nodes.values():
-            if node.meshNode != True:
-                print(f'\tNode {node.nodeID}:')
+            if node.mesh_node != True:
+                print(f'\tNode {node.node_ID}:')
                 print(f'\t\tRx = {node.Rx:.2f} kips')
                 print(f'\t\tRy = {node.Ry:.2f} kips')
                 print(f'\t\tRz = {node.Rz:.2f} kips')
