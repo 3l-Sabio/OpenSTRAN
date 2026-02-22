@@ -6,10 +6,7 @@
 OpenSTRAN documentation
 =======================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
-
+OpenSTRAN - Open Source Structural Analysis with Python
 
 .. toctree::
    :maxdepth: 2
