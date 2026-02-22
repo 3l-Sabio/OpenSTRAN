@@ -18,9 +18,7 @@ license = "MIT"
 license-files = ["LICEN[CS]E.*"]
 keywords = ["Structural Engineering", "Structural Analysis"]
 classifiers = [
-    "Development Stauts :: 3 - Alpha",
-    "Intended Audience :: Structural Engineering Professionals and Students",
-    "Topic :: Structural Engineering :: Structural Analysis",
+    "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: MIT License",
