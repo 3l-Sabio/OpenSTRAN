@@ -14,7 +14,7 @@ build:
 sphinx:
   configuration: docs/source/conf.py
   builder: html
-  fail_on_warnining: true
+  fail_on_warning: true
 
 # Build PDF documentation
 formats:
