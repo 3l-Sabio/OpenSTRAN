@@ -13,8 +13,10 @@ build:
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
   configuration: docs/source/conf.py
+  builder: html
   fail_on_warnining: true
 
+# Build PDF documentation
 formats:
   - pdf
   
@@ -25,4 +27,4 @@ python:
   install:
     - requirements: docs/requirements.txt
     - method: pip
-      path: .OpenSTRAN
+      path: .
