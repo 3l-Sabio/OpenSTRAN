@@ -24,9 +24,9 @@ class Member():
     :vartype node_i: Node
     :ivar node_j: End node of the member.
     :vartype node_j: Node
-    :ivar i_release: Boundary condition at node i (False = fixed, True = pinned).
+    :ivar i_release: Boundary condition at node i (False = fixed/pinned, True = pinned).
     :vartype i_release: bool
-    :ivar j_release: Boundary condition at node j (False = fixed, True = pinned).
+    :ivar j_release: Boundary condition at node j (False = fixed/pinned, True = pinned).
     :vartype j_release: bool
     :ivar E: Young's modulus in ksi.
     :vartype E: float
