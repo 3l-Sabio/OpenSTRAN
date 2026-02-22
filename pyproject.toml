@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "OpenSTRAN"
+version = "0.0.5"
+authors = [
+  { name="Xavier Montoya, PE", email="openstruct@os.mozmail.com" },
+]
+description = "Open source structural analysis with Python"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=2.4.1",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E.*"]
+keywords = ["Structural Engineering", "Structural Analysis"]
+classifiers = [
+    "Development Stauts :: 3 - Alpha",
+    "Intended Audience :: Structural Engineering Professionals and Students",
+    "Topic :: Structural Engineering :: Structural Analysis",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+]
+[project.optional-dependencies]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=1.3",
+    "sphinx-autodoc-typehints>=1.25",
+]
+[project.urls]
+Homepage = "https://github.com/3l-Sabio/OpenSTRAN"
+Documentation = "https://openSTRAN.readthedocs.io"
+Issues = "https://github.com/3l-Sabio/OpenSTRAN/issues"
