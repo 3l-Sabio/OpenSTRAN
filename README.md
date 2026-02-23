@@ -27,6 +27,10 @@ It is recommended to install these dependencies which may be done using the foll
 pip install numpy
 ```
 
+## Documentation
+
+<a href="https://openstran.readthedocs.io">Read the Docs!</a>
+
 ## Capabilities
 
 OpenSTRAN allows for the creation of simple two-dimensional frame elements and complex three-dimensional structures alike.
