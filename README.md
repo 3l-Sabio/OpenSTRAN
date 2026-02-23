@@ -5,8 +5,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/OpenSTRAN.svg)]()
 [![PyPI monthly downloads](https://img.shields.io/pypi/dm/OpenSTRAN.svg)](https://pypi.org/project/OpenSTRAN/)
 [![Downloads (pepy)](https://pepy.tech/badge/OpenSTRAN)](https://pepy.tech/project/OpenSTRAN)
-
-
+![Read the Docs](https://img.shields.io/readthedocs/OpenSTRAN)
 
 Open-Source Structural Analysis with Python
 
