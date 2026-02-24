@@ -30,7 +30,7 @@ class Members():
         """
         return asdict(self)
 
-    def addMember(
+    def add_member(
         self,
         node_i: Node,
         node_j: Node,
