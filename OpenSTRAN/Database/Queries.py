@@ -8,7 +8,7 @@ class QuerySteelDb():
 
     This class provides methods to query and retrieve steel section properties from the 
     AISC Steel Section Database (V15). It manages database connections and formats 
-    section property data for structural analysis applications.
+    section property data.
 
     The database contains comprehensive steel section data including geometric and 
     structural properties for various steel shapes (W-shapes, channels, angles, etc.).
