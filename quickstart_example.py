@@ -1,11 +1,8 @@
 from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Queries import QuerySteelDb
+from OpenSTRAN.Database.Shape import Shape
 
 # instantiate an empty model
 simpleBeam = Model()
-
-# instantiate a database connection
-query = QuerySteelDb()
 
 # create a node located at the origin
 N1 = simpleBeam.nodes.add_node(0, 0, 0)  # (X [ft], Y [ft], Z[ft])
@@ -22,15 +19,11 @@ E = 29000  # ksi - modulus of elasticity for steel
 G = 12000  # ksi - shear modulus for steel
 
 # import W12x14 member properties from the database
-section = query.get_section_properties("W12X14")
-Ixx = float(section['Ix'][0])
-Iyy = float(section['Iy'][0])
-A = float(section['A'][0])
-J = float(section['J'][0])
+s = Shape("W12X14")
 
 # define a member between nodes N1 and N2.
 M1 = simpleBeam.members.add_member(N1, N2, i_release=False, j_release=False,
-                                   E=E, Ixx=Ixx, Iyy=Iyy, A=A, G=G, J=J, mesh=50, bracing="continuous")
+                                   E=E, Ixx=s.Ix, Iyy=s.Iy, A=s.A, G=G, J=s.J, mesh=50, bracing="continuous")
 
 # add a load of -1 kips in the global Y direction along M1's span.
 M1.add_distributed_load(-1, -1, 'Y', 0, 100)
