@@ -1,6 +1,7 @@
 from .Nodes import Nodes
 from .Node import Node
 from .Submember import SubMember
+from .Database.Shape import Shape
 import numpy as np
 from math import sqrt
 
@@ -70,7 +71,7 @@ class Member():
     J: float
     mesh: int
     bracing: str | list[float]
-    shape: str
+    shape: Shape | None
     length: float = field(init=False)
     Cb: float = field(init=False)
     count: int = 0

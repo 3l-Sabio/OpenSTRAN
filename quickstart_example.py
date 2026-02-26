@@ -21,9 +21,7 @@ G = 12000  # ksi - shear modulus for steel
 # import W12x14 member properties from the database
 s = Shape("W12X14")
 
-# define a member between nodes N1 and N2.
-M1 = simpleBeam.members.add_member(N1, N2, i_release=False, j_release=False,
-                                   E=E, Ixx=s.Ix, Iyy=s.Iy, A=s.A, G=G, J=s.J, mesh=50, bracing="continuous")
+M1 = simpleBeam.members.add_member(N1, N2, shape=s)
 
 # add a load of -1 kips in the global Y direction along M1's span.
 M1.add_distributed_load(-1, -1, 'Y', 0, 100)

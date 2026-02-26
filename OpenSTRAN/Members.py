@@ -1,6 +1,7 @@
 from .Member import Member
 from .Nodes import Nodes
 from .Node import Node
+from .Database.Shape import Shape
 
 from dataclasses import dataclass, field, asdict
 
@@ -44,7 +45,7 @@ class Members():
         J: float = 0.0704,
         mesh: int = 50,
         bracing: str = "continuous",
-        shape: str = "W12x14",
+        shape: Shape | None = None,
     ) -> Member:
         """Add a member to the model.
 
@@ -83,6 +84,12 @@ class Members():
             >>> M2 = frame.members.addMember(N2, N3)
         """
         self.count += 1
+
+        if isinstance(shape, Shape):
+            Ixx = shape.Ix
+            Iyy = shape.Iy
+            A = shape.A
+            J = shape.J
 
         member = Member(
             self.nodes,
