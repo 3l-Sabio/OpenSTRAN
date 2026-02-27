@@ -16,36 +16,24 @@ class SubMember():
     A discretized sub-element between two mesh nodes containing geometry,
     section properties, and methods to build local and geometric stiffness matrices.
 
-    :ivar node_i: Start node of the submember
-    :type node_i: Node
-    :ivar node_j: End node of the submember
-    :type node_j: Node
-    :ivar i_release: Release (pinned) flag at the start node
-    :type i_release: bool
-    :ivar j_release: Release (pinned) flag at the end node
-    :type j_release: bool
-    :ivar E: Young's modulus
-    :type E: float
-    :ivar Ixx: Moment of inertia about the strong axis
-    :type Ixx: float
-    :ivar Iyy: Moment of inertia about the weak axis
-    :type Iyy: float
-    :ivar A: Cross-sectional area
-    :type A: float
-    :ivar G: Shear modulus
-    :type G: float
-    :ivar J: Polar moment of inertia
-    :type J: float
-    :ivar length: Submember length (computed)
-    :type length: float
-    :ivar rotation_matrix: Rotation matrix from local to global coordinates
-    :type rotation_matrix: numpy.ndarray
-    :ivar transformation_matrix: Transformation matrix for coordinate conversion
-    :type transformation_matrix: numpy.ndarray
-    :ivar Kl: Local stiffness matrix
-    :type Kl: numpy.ndarray
-    :ivar Kg: Global stiffness matrix
-    :type Kg: numpy.ndarray
+    Attributes:
+        node_i (Node): Start node of the submember.
+        node_j (Node): End node of the submember.
+        i_release (bool): Release (pinned) flag at the start node.
+        j_release (bool): Release (pinned) flag at the end node.
+        E (float): Young's modulus.
+        Ixx (float): Moment of inertia about the strong axis.
+        Iyy (float): Moment of inertia about the weak axis.
+        A (float): Cross-sectional area.
+        G (float): Shear modulus.
+        J (float): Polar moment of inertia.
+        ENAs (dict[str, list[float]]): Equivalent nodal actions.
+        results (dict[str, list[float]]): Analysis results storage.
+        length (float): Submember length (computed).
+        rotation_matrix (np.ndarray): Rotation matrix from local to global coordinates.
+        transformation_matrix (np.ndarray): Transformation matrix for coordinate conversion.
+        Kl (np.ndarray): Local stiffness matrix.
+        Kg (np.ndarray): Global stiffness matrix.
     """
     node_i: Node
     node_j: Node
@@ -73,8 +61,8 @@ class SubMember():
         Converts the dataclass instance into a dictionary representation containing
         all field names and their current values.
 
-        :returns: Dictionary containing all member attributes and their values
-        :rtype: dict[str, Any]
+        Returns:
+            dict[str, Any]: Dictionary containing all member attributes and their values.
         """
         return asdict(self)
 
@@ -131,15 +119,14 @@ class SubMember():
             self.Kl).dot(self.transformation_matrix)
 
     def calculate_length(self, node_i: Node, node_j: Node) -> float:
-        """
-        Compute Euclidean length between two nodes.
+        """Compute Euclidean length between two nodes.
 
-        :param node_i: Start node.
-        :type node_i: Node
-        :param node_j: End node.
-        :type node_j: Node
-        :returns: Length between `node_i` and `node_j`.
-        :rtype: float
+        Args:
+            node_i (Node): Start node.
+            node_j (Node): End node.
+
+        Returns:
+            float: Length between ``node_i`` and ``node_j``.
         """
         # calculate the x, y and z vector components of the member
         dx = node_j.coordinates.x - node_i.coordinates.x
@@ -149,24 +136,21 @@ class SubMember():
         return (sqrt(dx**2 + dy**2 + dz**2))
 
     def build_rotation_matrix(self, node_i: Node, node_j: Node, i_release: bool, j_release: bool) -> np.ndarray:
-        """
-        Build the rotation/transformation matrix for the submember.
+        """Build the rotation/transformation matrix for the submember.
 
         Establishes the local x,y,z unit vectors using a Gram-Schmidt
         approach and constructs the transformation matrix between the
         local element frame and the global frame. The size of the
         returned matrix depends on release conditions.
 
-        :param node_i: Start node.
-        :type node_i: Node
-        :param node_j: End node.
-        :type node_j: Node
-        :param i_release: Release flag at node i.
-        :type i_release: bool
-        :param j_release: Release flag at node j.
-        :type j_release: bool
-        :returns: Transformation matrix mapping local DOFs to global DOFs.
-        :rtype: np.ndarray
+        Args:
+            node_i (Node): Start node.
+            node_j (Node): End node.
+            i_release (bool): Release flag at node i.
+            j_release (bool): Release flag at node j.
+
+        Returns:
+            np.ndarray: Transformation matrix mapping local DOFs to global DOFs.
         """
         # assign nodal coordinates to a local variable for readability
         ix = node_i.coordinates.x

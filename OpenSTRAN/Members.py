@@ -12,12 +12,10 @@ from typing import Any
 class Members():
     """Container class for managing member (element) objects.
 
-    :ivar nodes: Reference to the global Nodes collection
-    :type nodes: Nodes
-    :ivar count: Number of members added to the collection
-    :type count: int
-    :ivar members: Mapping of member ID to Member object
-    :type members: dict[int, Member]
+    Attributes:
+        nodes (Nodes): Reference to the global Nodes collection.
+        count (int): Number of members added to the collection.
+        members (dict[int, Member]): Mapping of member ID to Member object.
     """
     nodes: Nodes
     count: int = 0
@@ -26,8 +24,8 @@ class Members():
     def properties(self) -> dict[str, Any]:
         """Return the dataclass properties as a dictionary.
 
-        :returns: Dictionary of this instance's fields
-        :rtype: dict[str, Any]
+        Returns:
+            dict[str, Any]: Dictionary of this instance's fields.
         """
         return asdict(self)
 
@@ -49,39 +47,37 @@ class Members():
     ) -> Member:
         """Add a member to the model.
 
-        :param node_i: Start node of the member
-        :type node_i: Node
-        :param node_j: End node of the member
-        :type node_j: Node
-        :param i_release: True if start node is released (pinned). Defaults to False.
-        :type i_release: bool
-        :param j_release: True if end node is released (pinned). Defaults to False.
-        :type j_release: bool
-        :param E: Young's modulus in ksi. Defaults to 29000.0.
-        :type E: float
-        :param Ixx: Moment of inertia about the strong axis in in^4. Defaults to 88.6.
-        :type Ixx: float
-        :param Iyy: Moment of inertia about the weak axis in in^4. Defaults to 2.36.
-        :type Iyy: float
-        :param A: Cross-sectional area in in^2. Defaults to 4.16.
-        :type A: float
-        :param G: Shear modulus in ksi. Defaults to 12000.0.
-        :type G: float
-        :param J: Polar moment of inertia in in^4. Defaults to 0.0704.
-        :type J: float
-        :param mesh: Number of discretizations per member. Defaults to 50.
-        :type mesh: int
-        :param bracing: Bracing type (e.g., "continuous"). Defaults to "continuous".
-        :type bracing: str
-        :param shape: Section shape name (e.g., "W12x14"). Defaults to "W12x14".
-        :type shape: str
-        :returns: The created Member instance
-        :rtype: Member
+        Args:
+            node_i (Node): Start node of the member.
+            node_j (Node): End node of the member.
+            i_release (bool, optional): True if start node is released (pinned).
+                Defaults to False.
+            j_release (bool, optional): True if end node is released (pinned).
+                Defaults to False.
+            E (float, optional): Young's modulus in ksi. Defaults to 29000.0.
+            Ixx (float, optional): Moment of inertia about the strong axis in
+                in^4. Defaults to 88.6.
+            Iyy (float, optional): Moment of inertia about the weak axis in
+                in^4. Defaults to 2.36.
+            A (float, optional): Cross-sectional area in in^2. Defaults to
+                4.16.
+            G (float, optional): Shear modulus in ksi. Defaults to 12000.0.
+            J (float, optional): Polar moment of inertia in in^4. Defaults to
+                0.0704.
+            mesh (int, optional): Number of discretizations per member. Defaults
+                to 50.
+            bracing (str, optional): Bracing type (e.g., "continuous"). Defaults
+                to "continuous".
+            shape (Shape | None, optional): Section shape name (e.g., "W12x14").
+                Defaults to None.
 
-        :Example:
+        Returns:
+            Member: The created Member instance.
 
-            >>> M1 = frame.members.addMember(N1, N2)
-            >>> M2 = frame.members.addMember(N2, N3)
+        Example:
+
+            >>> M1 = frame.members.add_member(N1, N2)
+            >>> M2 = frame.members.add_member(N2, N3)
         """
         self.count += 1
 

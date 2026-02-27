@@ -12,52 +12,35 @@ from dataclasses import dataclass, field, asdict
 
 @dataclass(slots=True)
 class Member():
+    """Represents a 3D space frame member connecting two nodes.
+
+    A member is a structural element that connects two nodes and can be
+    discretized into submembers for analysis. It supports various boundary
+    conditions, material properties, and loading conditions.
+
+    Attributes:
+        nodes (Nodes): Reference to the Nodes collection object.
+        node_i (Node): Start node of the member.
+        node_j (Node): End node of the member.
+        i_release (bool): Boundary condition at node i (False = fixed, True = pinned).
+        j_release (bool): Boundary condition at node j (False = fixed, True = pinned).
+        E (float): Young's modulus in ksi.
+        Ixx (float): Strong axis moment of inertia in in^4.
+        Iyy (float): Weak axis moment of inertia in in^4.
+        A (float): Cross-sectional area in in^2.
+        G (float): Shear modulus in ksi.
+        J (float): Polar moment of inertia in in^4.
+        mesh (int): Number of discretizations (submembers) along the member span.
+        bracing (str | list[float]): Lateral bracing configuration. Can be
+            'continuous', 'quarter', 'third', 'midspan', or a list of bracing
+            locations along the span.
+        shape (str | Shape | None): Cross-sectional shape identifier.
+        length (float): Calculated length of the member (in).
+        Cb (float): Lateral-torsional buckling coefficient.
+        count (int): Counter for submember creation.
+        submembers (dict[int, SubMember]): Dictionary of submembers indexed by
+            creation order.
     """
-    Represents a 3D space frame member connecting two nodes.
-
-    A member is a structural element that connects two nodes and can be discretized into
-    submembers for analysis. It supports various boundary conditions, material properties,
-    and loading conditions.
-
-    :ivar nodes: Reference to the Nodes collection object.
-    :vartype nodes: Nodes
-    :ivar node_i: Start node of the member.
-    :vartype node_i: Node
-    :ivar node_j: End node of the member.
-    :vartype node_j: Node
-    :ivar i_release: Boundary condition at node i (False = fixed, True = pinned).
-    :vartype i_release: bool
-    :ivar j_release: Boundary condition at node j (False = fixed, True = pinned).
-    :vartype j_release: bool
-    :ivar E: Young's modulus in ksi.
-    :vartype E: float
-    :ivar Ixx: Strong axis moment of inertia in in^4.
-    :vartype Ixx: float
-    :ivar Iyy: Weak axis moment of inertia in in^4.
-    :vartype Iyy: float
-    :ivar A: Cross-sectional area in in^2.
-    :vartype A: float
-    :ivar G: Shear modulus in ksi.
-    :vartype G: float
-    :ivar J: Polar moment of inertia in in^4.
-    :vartype J: float
-    :ivar mesh: Number of discretizations (submembers) along the member span.
-    :vartype mesh: int
-    :ivar bracing: Lateral bracing configuration. Can be 'continuous', 'quarter', 'third',
-                   'midspan', or a list of bracing locations along the span.
-    :vartype bracing: str | list[float]
-    :ivar shape: Cross-sectional shape identifier.
-    :vartype shape: str
-    :ivar length: Calculated length of the member (in).
-    :vartype length: float
-    :ivar Cb: Lateral-torsional buckling coefficient.
-    :vartype Cb: float
-    :ivar count: Counter for submember creation.
-    :vartype count: int
-    :ivar submembers: Dictionary of submembers indexed by creation order.
-    :vartype submembers: dict[int, SubMember]
-    """
-
     nodes: Nodes
     node_i: Node
     node_j: Node
@@ -84,9 +67,6 @@ class Member():
         Calculates the member length and discretizes the member into submembers
         based on the specified mesh parameter. Creates connectivity between
         submembers using intermediate mesh nodes.
-
-        :returns: None
-        :rtype: None
         """
         # Calculate the member length based on the node coordinates
         self.length = self.calculate_length(self.node_i, self.node_j)
@@ -152,12 +132,12 @@ class Member():
         Computes the 3D distance between two nodes based on their coordinate
         positions in the global reference frame.
 
-        :param node_i: Start node of the member
-        :type node_i: Node
-        :param node_j: End node of the member
-        :type node_j: Node
-        :returns: The length of the member in inches
-        :rtype: float
+        Args:
+            node_i (Node): Start node of the member.
+            node_j (Node): End node of the member.
+
+        Returns:
+            float: The length of the member in inches.
         """
         # Calculate the x, y and z vector components of the member
         dx = node_j.coordinates.x - node_i.coordinates.x
@@ -172,8 +152,8 @@ class Member():
         Converts the dataclass instance into a dictionary representation containing
         all field names and their current values.
 
-        :returns: Dictionary containing all member attributes and their values
-        :rtype: dict[str, Any]
+        Returns:
+            dict[str, Any]: Dictionary containing all member attributes and their values.
         """
         return asdict(self)
 
@@ -184,18 +164,15 @@ class Member():
         parameter. These nodes are used as intermediary connection points for
         submembers in the discretization process.
 
-        :param nodes: Collection of nodes in the model
-        :type nodes: Nodes
-        :param node_i: Start node of the member
-        :type node_i: Node
-        :param node_j: End node of the member
-        :type node_j: Node
-        :param mesh: Number of equal segments to divide the member into
-        :type mesh: int
-        :param l: Total length of the member in inches
-        :type l: float
-        :returns: List of intermediate mesh nodes along the member
-        :rtype: list[Node]
+        Args:
+            nodes (Nodes): Collection of nodes in the model.
+            node_i (Node): Start node of the member.
+            node_j (Node): End node of the member.
+            mesh (int): Number of equal segments to divide the member into.
+            l (float): Total length of the member in inches.
+
+        Returns:
+            list[Node]: List of intermediate mesh nodes along the member.
         """
         # Instantiate an array to hold the mesh nodes
         mesh_nodes: list[Node] = []
@@ -239,28 +216,20 @@ class Member():
         boundary conditions and material properties. The submember is stored
         in the submembers dictionary using an auto-incremented counter.
 
-        :param node_i: Start node of the submember
-        :type node_i: Node
-        :param node_j: End node of the submember
-        :type node_j: Node
-        :param i_release: Release condition at start node (False = fixed, True = pinned)
-        :type i_release: bool
-        :param j_release: Release condition at end node (False = fixed, True = pinned)
-        :type j_release: bool
-        :param E: Young's modulus in ksi
-        :type E: float
-        :param Ixx: Strong axis moment of inertia in in^4
-        :type Ixx: float
-        :param Iyy: Weak axis moment of inertia in in^4
-        :type Iyy: float
-        :param A: Cross-sectional area in in^2
-        :type A: float
-        :param G: Shear modulus in ksi
-        :type G: float
-        :param J: Polar moment of inertia in in^4
-        :type J: float
-        :returns: None
-        :rtype: None
+        Args:
+            node_i (Node): Start node of the submember.
+            node_j (Node): End node of the submember.
+            i_release (bool): Release condition at start node (False = fixed, True = pinned).
+            j_release (bool): Release condition at end node (False = fixed, True = pinned).
+            E (float): Young's modulus in ksi.
+            Ixx (float): Strong axis moment of inertia in in^4.
+            Iyy (float): Weak axis moment of inertia in in^4.
+            A (float): Cross-sectional area in in^2.
+            G (float): Shear modulus in ksi.
+            J (float): Polar moment of inertia in in^4.
+
+        Returns:
+            None
         """
         self.count += 1
         submbr = SubMember(
@@ -278,16 +247,16 @@ class Member():
         self.submembers[self.count] = submbr
 
     def calculate_Cb(self) -> float:
-        """
-        Calculate the lateral-torsional buckling coefficient (Cb) for the member.
+        """Calculate the lateral-torsional buckling coefficient (Cb) for the member.
 
         Computes Cb based on moment variation along unbraced spans using the
         standard AISC formula: Cb = 12.5*Mmax / (2.5*Mmax + 3*Ma + 4*Mb + 3*Mc).
         The calculation accounts for lateral bracing locations and interpolates
-        moments at quarter-span points. The result is limited to a maximum of 3.0.
+        moments at quarter-span points. The result is limited to a maximum of
+        3.0.
 
-        :returns: The lateral-torsional buckling coefficient, limited to 3.0 maximum.
-        :rtype: float
+        Returns:
+            float: The lateral-torsional buckling coefficient, limited to 3.0 maximum.
         """
         # Instantiate an array to hold Cb for each unbraced span
         Cb: list[float] = []
@@ -295,16 +264,14 @@ class Member():
         def discretize(length: float, n: int, l1: float = 0.0) -> list[float]:
             """Discretize span into n segments and return division points.
 
-            :param length: Length of span.
-            :type length: float
-            :param n: Number of segments.
-            :type n: int
-            :param l1: Offset location.
-            :type l1: float
-            :returns: List of discretized locations.
-            :rtype: list[float]
-            """
-            # Returns an n-sized array of locations along the member span
+            Args:
+                length (float): Length of span.
+                n (int): Number of segments.
+                l1 (float, optional): Offset location. Defaults to 0.0.
+
+            Returns:
+                list[float]: List of discretized locations.
+            """            # Returns an n-sized array of locations along the member span
             locations: list[float] = []
             for i in range(n-1):
                 i += 1
@@ -314,10 +281,11 @@ class Member():
         def braceCoordinates(bracePoint: float) -> tuple[float, float, float]:
             """Calculate the global coordinates of a brace point along the member.
 
-            :param bracePoint: Distance along member span.
-            :type bracePoint: float
-            :returns: Tuple of (x, y, z) coordinates.
-            :rtype: tuple[float, float, float]
+            Args:
+                bracePoint (float): Distance along member span.
+
+            Returns:
+                tuple[float, float, float]: Tuple of (x, y, z) coordinates.
             """
             # Calculate the x, y and z vector components of the member
             dx = self.node_j.coordinates.x - self.node_i.coordinates.x
@@ -426,23 +394,21 @@ class Member():
         return self.Cb
 
     def add_point_load(self, mag: float, direction: str, location: float) -> None:
-        """
-        Apply a concentrated point load to the member.
+        """Apply a concentrated point load to the member.
 
-        Applies a point load at a specified location along the member span.
-        The load can be specified in either global (X, Y, Z) or local (x, y, z)
+        Applies a point load at a specified location along the member span. The
+        load can be specified in either global (X, Y, Z) or local (x, y, z)
         coordinates. The method calculates equivalent nodal actions and distributes
         loads to the appropriate nodes and submembers.
 
-        :param mag: Magnitude of the load in kips.
-        :type mag: float
-        :param direction: Load direction - global ('X', 'Y', 'Z') or local ('x', 'y', 'z').
-        :type direction: str
-        :param location: Load location as percentage of member span (0-100%).
-        :type location: float
-        :returns: None
-        :rtype: None
-        :raises ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
+        Args:
+            mag (float): Magnitude of the load in kips.
+            direction (str): Load direction - global ('X', 'Y', 'Z') or local
+                ('x', 'y', 'z').
+            location (float): Load location as percentage of member span (0-100%).
+
+        Raises:
+            ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
         # Convert location from percentage to absolute distance
         location = self.length*(location/100)
@@ -701,28 +667,25 @@ class Member():
             l1 = l2
 
     def add_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
-        """
-        Apply a trapezoidal distributed load along the member.
+        """Apply a trapezoidal distributed load along the member.
 
         Applies a distributed load with linearly varying magnitude over a specified
         portion of the member span. Handles loading that spans across multiple
         submembers by calculating equivalent nodal actions for each affected segment.
 
-        :param Mag1: Starting magnitude of the distributed load in kips.
-        :type Mag1: float
-        :param Mag2: Ending magnitude of the distributed load in kips.
-        :type Mag2: float
-        :param direction: Load direction - global ('X', 'Y', 'Z') or local ('x', 'y', 'z').
-        :type direction: str
-        :param loc1: Starting location of load along member span as percentage (0-100%).
-        :type loc1: float
-        :param loc2: Ending location of load along member span as percentage (0-100%).
-        :type loc2: float
-        :returns: None
-        :rtype: None
-        :raises ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
-        """
+        Args:
+            Mag1 (float): Starting magnitude of the distributed load in kips.
+            Mag2 (float): Ending magnitude of the distributed load in kips.
+            direction (str): Load direction - global ('X', 'Y', 'Z') or local
+                ('x', 'y', 'z').
+            loc1 (float): Starting location of load along member span as percentage
+                (0-100%).
+            loc2 (float): Ending location of load along member span as percentage
+                (0-100%).
 
+        Raises:
+            ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
+        """
         # Convert the start and end locations to absolute distance
         loc1 = self.length*(loc1/100)
         loc2 = self.length*(loc2/100)

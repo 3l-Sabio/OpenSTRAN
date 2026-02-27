@@ -58,13 +58,10 @@ class QuerySteelDb():
         self.path: str = os.path.join(os.path.dirname(__file__), 'Data.db')
 
     def connect(self) -> None:
-        """
-        Establish a connection to the SQLite database.
+        """Establish a connection to the SQLite database.
 
         Creates a connection object and cursor for executing database queries.
-        The database file is located at the path specified by self.path.
-
-        :return: None
+        The database file is located at the path specified by :attr:`self.path`.
         """
         # Establish SQLite connection to the database file
         self.connection = sqlite3.connect(self.path)
@@ -72,13 +69,10 @@ class QuerySteelDb():
         self.cursor = self.connection.cursor()
 
     def disconnect(self) -> None:
-        """
-        Commit changes and close the database connection.
+        """Commit changes and close the database connection.
 
         Commits any pending transactions and closes the connection to the database.
         Should be called after all queries are complete.
-
-        :return: None
         """
         # Save any pending database changes
         self.connection.commit()
@@ -86,21 +80,19 @@ class QuerySteelDb():
         self.connection.close()
 
     def format_records(self, records: list[tuple[str]], query: str) -> dict[str, list[str]]:
-        """
-        Format database records into a standardized dictionary structure.
+        """Format database records into a standardized dictionary structure.
 
         Converts raw database records into a dictionary mapping property names to 
-        [value, unit] pairs. Handles special formatting for type and label queries 
+        `[value, unit]` pairs. Handles special formatting for type and label queries 
         versus detailed property queries.
 
-        :param records: List of tuples containing database query results.
-        :type records: list[tuple[str]]
-        :param query: The type of query executed (e.g., 'get_aisc_manual_labels', 'get_section_properties').
-        :type query: str
-        :return: Dictionary mapping property names to [value, unit] pairs.
-        :rtype: dict[str, list[str]]
-        """
-        # For label/type queries, return the label/type mapped to itself (no separate unit needed)
+        Args:
+            records (list[tuple[str]]): List of tuples containing database query results.
+            query (str): The type of query executed (e.g., ``'get_aisc_manual_labels'``, ``'get_section_properties'``).
+
+        Returns:
+            dict[str, list[str]]: Dictionary mapping property names to [value, unit] pairs.
+        """        # For label/type queries, return the label/type mapped to itself (no separate unit needed)
         if query in ['get_aisc_manual_labels', 'get_aisc_manual_types']:
             return {record[0]: [record[0], record[0]] for record in records}
         # For property queries, return each property with its corresponding value and unit
@@ -108,21 +100,19 @@ class QuerySteelDb():
             return {k: [v, u] for k, v, u in zip(self.headers, records[0], self.units)}
 
     def return_records(self, records: list[tuple[str]] | None, Query: str) -> dict[str, list[str]]:
-        """
-        Return formatted records or a placeholder if no records are found.
+        """Return formatted records or a placeholder if no records are found.
 
-        Wraps the format_records method to handle the case when no database records 
-        are returned. Returns a standardized "No Records Found" response if the query 
+        Wraps :meth:`format_records` to handle the case when no database records are
+        returned. Returns a standardized "No Records Found" response if the query
         yields no results.
 
-        :param records: List of database records or None if no records found.
-        :type records: list[tuple[str]] | None
-        :param Query: The type of query executed.
-        :type Query: str
-        :return: Formatted dictionary with property data or "No Records Found" message.
-        :rtype: dict[str, list[str]]
-        """
-        # Return a placeholder message if no records were found in the database
+        Args:
+            records (list[tuple[str]] | None): List of database records or None if no records found.
+            Query (str): The type of query executed.
+
+        Returns:
+            dict[str, list[str]]: Formatted dictionary with property data or "No Records Found" message.
+        """        # Return a placeholder message if no records were found in the database
         if records == None:
             val: str = 'No Records Found'
             return ({val: [val, val]})
@@ -131,14 +121,14 @@ class QuerySteelDb():
             return (self.format_records(records, Query))
 
     def get_aisc_manual_types(self) -> dict[str, list[str]]:
-        """
-        Retrieve all available steel shape types from the database.
+        """Retrieve all available steel shape types from the database.
 
-        Queries the database for distinct section types (e.g., W-shapes, Channels, 
+        Queries the database for distinct section types (e.g., W-shapes, Channels,
         Angles, etc.) available in the AISC Steel Section Database.
 
-        :return: Dictionary mapping each shape type to itself in [type, type] format.
-        :rtype: dict[str, list[str]]
+        Returns:
+            dict[str, list[str]]: Dictionary mapping each shape type to itself in
+            ``[type, type]`` format.
         """
         self.connect()
         # Query for distinct shape types (no parameters needed)
@@ -150,16 +140,17 @@ class QuerySteelDb():
         return self.return_records(records, 'get_aisc_manual_types')
 
     def get_aisc_manual_labels(self, shape_type: str) -> dict[str, list[str]]:
-        """
-        Retrieve all AISC manual labels for a specified shape type.
+        """Retrieve all AISC manual labels for a specified shape type.
 
-        Queries the database for all standard AISC manual labels (e.g., W12x22, 
+        Queries the database for all standard AISC manual labels (e.g., W12x22,
         C8x11.5) that belong to the specified shape type.
 
-        :param shape_type: The steel shape type (e.g., 'W', 'C', 'L', 'T').
-        :type shape_type: str
-        :return: Dictionary mapping each AISC manual label to itself in [label, label] format.
-        :rtype: dict[str, list[str]]
+        Args:
+            shape_type (str): The steel shape type (e.g., 'W', 'C', 'L', 'T').
+
+        Returns:
+            dict[str, list[str]]: Dictionary mapping each AISC manual label to itself
+            in ``[label, label]`` format.
         """
         self.connect()
         # Query for all labels of a specific shape type; (shape_type,) provides parameter binding
@@ -171,17 +162,18 @@ class QuerySteelDb():
         return self.return_records(records, 'get_aisc_manual_labels')
 
     def get_section_properties(self, shape: str) -> dict[str, list[str]]:
-        """
-        Retrieve all geometric and structural properties for a specified steel section.
+        """Retrieve all geometric and structural properties for a specified steel section.
 
-        Queries the database for complete section properties (moment of inertia, 
-        section modulus, radius of gyration, etc.) of a specific steel shape identified 
-        by its AISC manual label.
+        Queries the database for complete section properties (moment of inertia,
+        section modulus, radius of gyration, etc.) of a specific steel shape
+        identified by its AISC manual label.
 
-        :param shape: The AISC manual label of the steel section (e.g., 'W12x22').
-        :type shape: str
-        :return: Dictionary mapping property names to [value, unit] pairs for the specified shape.
-        :rtype: dict[str, list[str]]
+        Args:
+            shape (str): The AISC manual label of the steel section (e.g., 'W12x22').
+
+        Returns:
+            dict[str, list[str]]: Dictionary mapping property names to [value, unit]
+            pairs for the specified shape.
         """
         self.connect()
         # Query for all properties of a specific steel section (returns all columns)
@@ -193,19 +185,19 @@ class QuerySteelDb():
         return (self.return_records(records, 'get_section_properties'))
 
     def get_shapes(self, shape_type: str, shape_substring: str) -> dict[str, list[str]]:
-        """
-        Retrieve steel shapes matching a specified type and name pattern.
+        """Retrieve steel shapes matching a specified type and name pattern.
 
-        Queries the database for AISC manual labels that match both the specified 
-        shape type and a substring pattern in their label name. Useful for searching 
+        Queries the database for AISC manual labels that match both the specified
+        shape type and a substring pattern in their label name. Useful for searching
         for shapes with specific naming characteristics.
 
-        :param shape_type: The steel shape type (e.g., 'W', 'C', 'L', 'T').
-        :type shape_type: str
-        :param shape_substring: Substring pattern to match in AISC manual label (e.g., '12', 'x22').
-        :type shape_substring: str
-        :return: Dictionary mapping matching AISC manual labels to themselves in [label, label] format.
-        :rtype: dict[str, list[str]]
+        Args:
+            shape_type (str): The steel shape type (e.g., 'W', 'C', 'L', 'T').
+            shape_substring (str): Substring pattern to match in AISC manual label (e.g., '12', 'x22').
+
+        Returns:
+            dict[str, list[str]]: Dictionary mapping matching AISC manual labels to
+            themselves in ``[label, label]`` format.
         """
         self.connect()
         # Query for shapes matching type and substring pattern;

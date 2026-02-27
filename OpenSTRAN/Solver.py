@@ -11,20 +11,14 @@ class Solver():
     the global stiffness matrix, applying boundary conditions, and solving for nodal
     displacements and member forces.
 
-    :ivar nDoF: Total number of degrees of freedom in the structure
-    :type nDoF: int
-    :ivar pinDoF: List of pinned (rotational) degrees of freedom indices
-    :type pinDoF: list[int]
-    :ivar restrainedDoF: List of restrained degrees of freedom indices
-    :type restrainedDoF: list[int]
-    :ivar Kp: Primary stiffness matrix for the structure
-    :type Kp: numpy.ndarray | None
-    :ivar force_vector: Global force vector with applied loads
-    :type force_vector: numpy.ndarray | None
-    :ivar global_displacement_vector: Global displacement vector at all nodes
-    :type global_displacement_vector: numpy.ndarray | None
-    :ivar global_force_vector: Global reaction force vector
-    :type global_force_vector: numpy.ndarray | None
+    Attributes:
+        nDoF (int): Total number of degrees of freedom in the structure.
+        pinDoF (list[int]): List of pinned (rotational) degrees of freedom indices.
+        restrainedDoF (list[int]): List of restrained degrees of freedom indices.
+        Kp (numpy.ndarray | None): Primary stiffness matrix for the structure.
+        force_vector (numpy.ndarray | None): Global force vector with applied loads.
+        global_displacement_vector (numpy.ndarray | None): Global displacement vector at all nodes.
+        global_force_vector (numpy.ndarray | None): Global reaction force vector.
     """
 
     def __init__(self) -> None:
@@ -46,19 +40,16 @@ class Solver():
         """Solve the structural system for displacements and member forces.
 
         This method performs a complete finite element analysis including:
-        
-        - Assembly of the global stiffness matrix
-        - Application of boundary conditions
-        - Solution for nodal displacements using matrix reduction
-        - Computation of member forces and reactions
-        - Removal of equivalent nodal actions (distributed loads)
 
-        :param nodes: Collection of nodes in the structural model
-        :type nodes: Nodes
-        :param members: Collection of members in the structural model
-        :type members: Members
-        :returns: None
-        :rtype: None
+        * Assembly of the global stiffness matrix
+        * Application of boundary conditions
+        * Solution for nodal displacements using matrix reduction
+        * Computation of member forces and reactions
+        * Removal of equivalent nodal actions (distributed loads)
+
+        Args:
+            nodes (Nodes): Collection of nodes in the structural model.
+            members (Members): Collection of members in the structural model.
         """
         # Re-instantiate empty arrays for second-order analysis.
         self.restrainedDoF = []
@@ -387,18 +378,12 @@ class Solver():
         based on end releases and assembles it into the primary stiffness matrix at
         the correct locations corresponding to the member's nodes.
 
-        :param node_ID_i: Node ID at the start of the member
-        :type node_ID_i: int
-        :param node_ID_j: Node ID at the end of the member
-        :type node_ID_j: int
-        :param i_release: Whether the i-node has rotational releases (pinned)
-        :type i_release: bool
-        :param j_release: Whether the j-node has rotational releases (pinned)
-        :type j_release: bool
-        :param KG: Global stiffness matrix of the member (12x12 or reduced)
-        :type KG: numpy.ndarray
-        :returns: None
-        :rtype: None
+        Args:
+            node_ID_i (int): Node ID at the start of the member.
+            node_ID_j (int): Node ID at the end of the member.
+            i_release (bool): Whether the i-node has rotational releases (pinned).
+            j_release (bool): Whether the j-node has rotational releases (pinned).
+            KG (np.ndarray): Global stiffness matrix of the member (12x12 or reduced).
         """
         assert self.Kp is not None
 

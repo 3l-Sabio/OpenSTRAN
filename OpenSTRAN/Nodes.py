@@ -10,18 +10,13 @@ from typing import Any
 class Nodes():
     """A container class for managing user-defined node objects in the structural model.
 
-    :ivar plane: The plane constraint associated with the nodes
-    :type plane: str | None
-    :ivar count: The total number of nodes added
-    :type count: int
-    :ivar nodes: Dictionary mapping node IDs to Node objects
-    :type nodes: dict[int, Node]
-    :ivar x: List of x-coordinates
-    :type x: list[float]
-    :ivar y: List of y-coordinates
-    :type y: list[float]
-    :ivar z: List of z-coordinates
-    :type z: list[float]
+    Attributes:
+        plane (str | None): The plane constraint associated with the nodes.
+        count (int): The total number of nodes added.
+        nodes (dict[int, Node]): Dictionary mapping node IDs to Node objects.
+        x (list[float]): List of x-coordinates.
+        y (list[float]): List of y-coordinates.
+        z (list[float]): List of z-coordinates.
     """
     plane: str | None = None
     count: int = 0
@@ -33,26 +28,24 @@ class Nodes():
     def properties(self) -> dict[str, Any]:
         """Return the dataclass properties as a dictionary.
 
-        :returns: Dictionary of this instance's fields
-        :rtype: dict[str, Any]
+        Returns:
+            dict[str, Any]: Dictionary of this instance's fields.
         """
         return asdict(self)
 
     def add_node(self, x: float, y: float, z: float, mesh_node: bool = False) -> Node:
         """Add a node to the model at the specified coordinates.
 
-        :param x: x-coordinate in feet
-        :type x: float
-        :param y: y-coordinate in feet
-        :type y: float
-        :param z: z-coordinate in feet
-        :type z: float
-        :param mesh_node: Whether this is a mesh node. Defaults to False.
-        :type mesh_node: bool
-        :returns: The added or existing node object
-        :rtype: Node
+        Args:
+            x (float): x-coordinate in feet.
+            y (float): y-coordinate in feet.
+            z (float): z-coordinate in feet.
+            mesh_node (bool, optional): Whether this is a mesh node. Defaults to False.
 
-        :Example:
+        Returns:
+            Node: The added or existing node object.
+
+        Example:
 
             >>> N1 = frame.nodes.add_node(0, 0, 0)
             >>> N2 = frame.nodes.add_node(0, 10, 0)
@@ -78,16 +71,14 @@ class Nodes():
     def find_node(self, x: float, y: float, z: float) -> Node | None:
         """Find a node in the model at the specified coordinates.
 
-        :param x: x-coordinate in feet
-        :type x: float
-        :param y: y-coordinate in feet
-        :type y: float
-        :param z: z-coordinate in feet
-        :type z: float
-        :returns: The matching node object if found, None otherwise
-        :rtype: Node | None
-        """
-        # Define a floating point error tolerance.
+        Args:
+            x (float): x-coordinate in feet.
+            y (float): y-coordinate in feet.
+            z (float): z-coordinate in feet.
+
+        Returns:
+            Node | None: The matching node object if found, None otherwise.
+        """        # Define a floating point error tolerance.
         pointError: float = 1*10**-6
 
         # Iterate through the model nodes.
