@@ -68,7 +68,7 @@ class Members():
                 to 50.
             bracing (str, optional): Bracing type (e.g., "continuous"). Defaults
                 to "continuous".
-            shape (Shape | None, optional): Section shape name (e.g., "W12x14").
+            shape (Shape | None, optional): Shape class with section properties.
                 Defaults to None.
 
         Returns:
