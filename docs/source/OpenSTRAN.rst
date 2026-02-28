@@ -60,10 +60,26 @@ OpenSTRAN.Submember module
    :show-inheritance:
    :undoc-members:
 
-OpenSTRAN.model module
+OpenSTRAN.Model module
 ----------------------
 
-.. automodule:: OpenSTRAN.model
+.. automodule:: OpenSTRAN.Model
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+OpenSTRAN.Database.Queries module
+---------------------------------
+
+.. automodule:: OpenSTRAN.Database.Queries
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+OpenSTRAN.Database.Shape module
+-------------------------------
+
+.. automodule:: OpenSTRAN.Database.Shape
    :members:
    :show-inheritance:
    :undoc-members:
