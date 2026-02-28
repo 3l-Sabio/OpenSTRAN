@@ -13,7 +13,7 @@ class QuerySteelDb():
     The database contains comprehensive steel section data including geometric and 
     structural properties for various steel shapes (W-shapes, channels, angles, etc.).
 
-    Attributes:
+    Parameters:
         table (str): Name of the database table containing AISC data ('AISC_SSDB_V15').
         headers (list[str]): Column headers mapping database fields to property names.
         units (list[str]): Units corresponding to each property in headers.

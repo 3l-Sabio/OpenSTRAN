@@ -9,7 +9,7 @@ from typing import Any
 class Node():
     """A class representing a node in the structural analysis model.
 
-    Attributes:
+    Parameters:
         coordinates (Coordinate): The coordinate object defining the node's position.
         node_ID (int): Unique identifier for the node.
         mesh_node (bool): Indicates if this is a mesh node. Defaults to False.

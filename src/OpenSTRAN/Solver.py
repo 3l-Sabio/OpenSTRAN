@@ -11,7 +11,7 @@ class Solver():
     the global stiffness matrix, applying boundary conditions, and solving for nodal
     displacements and member forces.
 
-    Attributes:
+    Parameters:
         nDoF (int): Total number of degrees of freedom in the structure.
         pinDoF (list[int]): List of pinned (rotational) degrees of freedom indices.
         restrainedDoF (list[int]): List of restrained degrees of freedom indices.

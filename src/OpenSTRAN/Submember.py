@@ -16,7 +16,7 @@ class SubMember():
     A discretized sub-element between two mesh nodes containing geometry,
     section properties, and methods to build local and geometric stiffness matrices.
 
-    Attributes:
+    Parameters:
         node_i (Node): Start node of the submember.
         node_j (Node): End node of the submember.
         i_release (bool): Release (pinned) flag at the start node.

@@ -12,7 +12,7 @@ from typing import Any
 class Members():
     """Container class for managing member (element) objects.
 
-    Attributes:
+    Parameters:
         nodes (Nodes): Reference to the global Nodes collection.
         count (int): Number of members added to the collection.
         members (dict[int, Member]): Mapping of member ID to Member object.

@@ -13,7 +13,7 @@ class Model():
     torsional warping, operating under the assumption that such effects are
     negligible in typical civil engineering applications.
 
-    Attributes:
+    Parameters:
         plane (str | None): Constrains the model to a two-dimensional plane. Valid
             values are 'xy', 'yz', or 'xz'. If None, the model is fully
             three-dimensional.

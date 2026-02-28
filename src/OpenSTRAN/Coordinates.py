@@ -10,7 +10,7 @@ from typing import Self, Any
 class Coordinate():
     """A class representing a 3D coordinate in space.
 
-    Attributes:
+    Parameters:
         x (float): The x-coordinate in feet.
         y (float): The y-coordinate in feet.
         z (float): The z-coordinate in feet.

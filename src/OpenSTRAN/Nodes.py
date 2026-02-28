@@ -10,7 +10,7 @@ from typing import Any
 class Nodes():
     """A container class for managing user-defined node objects in the structural model.
 
-    Attributes:
+    Parameters:
         plane (str | None): The plane constraint associated with the nodes.
         count (int): The total number of nodes added.
         nodes (dict[int, Node]): Dictionary mapping node IDs to Node objects.

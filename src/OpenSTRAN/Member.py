@@ -18,7 +18,7 @@ class Member():
     discretized into submembers for analysis. It supports various boundary
     conditions, material properties, and loading conditions.
 
-    Attributes:
+    Parameters:
         nodes (Nodes): Reference to the Nodes collection object.
         node_i (Node): Start node of the member.
         node_j (Node): End node of the member.
