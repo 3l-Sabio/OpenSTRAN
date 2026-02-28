@@ -8,8 +8,8 @@ class Shape:
     """Container for section properties retrieved from the steel section DB.
 
     This class is a thin dataclass wrapper around the mapping returned by
-    :py:meth:`QuerySteelDb.get_section_properties`. Only ``shape`` is passed
-    to the constructor; during ``__post_init__`` the class queries the DB and
+    ``QuerySteelDb.get_section_properties``. Only ``shape`` is passed to the
+    constructor; during ``__post_init__`` the class queries the DB and
     dynamically creates attributes for each returned column. Column names
     containing spaces are converted to Python-friendly attribute names by
     replacing spaces with underscores (for example, the DB column
@@ -19,64 +19,47 @@ class Shape:
     strings are converted to ``None``. The original raw mapping is stored in
     ``_props`` for callers that prefer keyed access.
 
-    Parameters
-    ----------
-    shape : str
-        Section designation passed to the DB query (for example ``"W12X14"``).
+    Args:
+        shape (str): Section designation passed to the DB query (for example
+            ``"W12X14"``).
 
-    Attributes
-    ----------
-    Type : None | str
-        Section family/type returned by the DB.
-    EDI_Std_Nomenclature : None | str
-        EDI standard nomenclature (if present).
-    AISC_Manual_Label : None | str
-        Label from the AISC manual.
-    T_F : None | str
-        Section type/flag used by the DB.
-    W, self_weight : None | float
-        Section weight (W) in the DB and a convenience alias ``self_weight``.
-    A : None | float
-        Cross-sectional area.
-    d, ddet, Ht, h1, OD, bf, bfdet, B1, b2, ID : None | float
-        Geometric dimensions and derived values (depths, widths, outer/inner
-        diameters, etc.).
-    tw, twdet, twdet_over_2, tf, tfdet, t1, tnom, tdes, kdes, kdet, k1 : None | float
-        Thicknesses, tolerances and related geometric properties.
-    x, y, eo, xp, yp : None | float
-        Centroid and eccentricity related coordinates.
-    bf_over_2tf, b_over_t, b_over_tdes, h_over_tw, h_over_tdes, D_over_t : None | float
-        Slenderness and ratio parameters used in section checks.
-    Ix, Zx, Sx, rx, Iy, Zy, Sy, ry, Iz, rz, Sz : None | float
-        Second moments of area, section moduli and radii of gyration.
-    J, Cw, C : None | float
-        Torsional and warping constants.
-    Wno, Sw1, Sw2, Sw3, Qf, Qw, ro, H, tana, Iw : None | float
-        Miscellaneous sectional properties used in design calculations.
-    zA, zB, zC, wA, wB, wC, SwA, SwB, SwC, SzA, SzB, SzC : None | float
-        Section property partitions (zones A/B/C) and corresponding values.
-    rts, ho, PA, PA2, PB, PC, PD, T, WGi, WGo : None | float
-        Additional design-related values returned by the DB.
-    _props : dict[str, list[str]]
-        Raw mapping returned by :py:meth:`QuerySteelDb.get_section_properties`.
+    Parameters:
+        Type (str | None): Section family/type returned by the DB.
+        EDI_Std_Nomenclature (str | None): EDI standard nomenclature (if present).
+        AISC_Manual_Label (str | None): Label from the AISC manual.
+        T_F (str | None): Section type/flag used by the DB.
+        W (float | None): Section weight (W) in the DB. ``self_weight`` is a
+            convenience alias for this value.
+        A (float | None): Cross-sectional area.
+        d, ddet, Ht, h1, OD, bf, bfdet, B1, b2, ID (float | None): Geometric
+            dimensions and derived values (depths, widths, outer/inner
+            diameters, etc.).
+        tw, twdet, twdet_over_2, tf, tfdet, t1, tnom, tdes, kdes, kdet, k1
+            (float | None): Thicknesses, tolerances and related geometric
+            properties.
+        x, y, eo, xp, yp (float | None): Centroid and eccentricity related
+            coordinates.
+        bf_over_2tf, b_over_t, b_over_tdes, h_over_tw, h_over_tdes, D_over_t
+            (float | None): Slenderness and ratio parameters used in section
+            checks.
+        Ix, Zx, Sx, rx, Iy, Zy, Sy, ry, Iz, rz, Sz (float | None): Second
+            moments of area, section moduli and radii of gyration.
+        J, Cw, C (float | None): Torsional and warping constants.
+        Wno, Sw1, Sw2, Sw3, Qf, Qw, ro, H, tana, Iw (float | None): Miscellaneous
+            sectional properties used in design calculations.
+        zA, zB, zC, wA, wB, wC, SwA, SwB, SwC, SzA, SzB, SzC (float | None):
+            Section property partitions (zones A/B/C) and corresponding values.
+        rts, ho, PA, PA2, PB, PC, PD, T, WGi, WGo (float | None): Additional
+            design-related values returned by the DB.
+        _props (dict[str, list[str]]): Raw mapping returned by
+            ``QuerySteelDb.get_section_properties``.
 
-    Notes
-    -----
-    - Attributes are created dynamically at runtime. Static type checkers
-      (Pylance, mypy) rely on the explicit attribute annotations in this
-      class to provide completions and type information for commonly-used
-      fields.
-    - If you need a fully statically-typed representation for all DB
-      columns, consider generating a typed dataclass from the DB schema at
-      build time.
-
-    Examples
-    --------
-    >>> s = Shape("W12X14")
-    >>> s.W  # weight as a float (if present)
-    14.0
-    >>> s._props["W"]  # raw value(s) from the DB
-    ["14.0"]
+    Examples:
+        >>> s = Shape("W12X14")
+        >>> s.W  # weight as a float (if present)
+        14.0
+        >>> s._props["W"]  # raw value(s) from the DB
+        ["14.0"]
     """
 
     shape: str
@@ -189,7 +172,7 @@ class Shape:
     def properties(self) -> dict[str, str | float]:
         """Return the dataclass properties as a dictionary.
 
-        :returns: Dictionary of this instance's fields
-        :rtype: dict[str, Any]
+        Returns:
+            dict[str, Any]: Dictionary of this instance's fields.
         """
         return asdict(self)
