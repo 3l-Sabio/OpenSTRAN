@@ -356,20 +356,34 @@ class Solver():
                     submbr.ENAs['minor axis moments'][1]
 
                 # Store nodal reactions.
-                if submbr.node_i.mesh_node != True:
+                if submbr.node_i.mesh_node is not True:
                     submbr.node_i.Rx = self.global_force_vector[ia][0]
                     submbr.node_i.Ry = self.global_force_vector[ia+1][0]
                     submbr.node_i.Rz = self.global_force_vector[ia+2][0]
                     submbr.node_i.Rmx = self.global_force_vector[ia+3][0]
                     submbr.node_i.Rmy = self.global_force_vector[ia+4][0]
                     submbr.node_i.Rmz = self.global_force_vector[ib][0]
-                elif submbr.node_j.mesh_node != True:
+                elif submbr.node_j.mesh_node is not True:
                     submbr.node_j.Rx = self.global_force_vector[ja][0]
                     submbr.node_j.Ry = self.global_force_vector[ja+1][0]
                     submbr.node_j.Rz = self.global_force_vector[ja+2][0]
                     submbr.node_j.Rmx = self.global_force_vector[ja+3][0]
                     submbr.node_j.Rmy = self.global_force_vector[ja+4][0]
                     submbr.node_j.Rmz = self.global_force_vector[jb][0]
+
+                # Store nodal displacements.
+                submbr.node_i.Ux = self.global_displacement_vector[ia][0]
+                submbr.node_i.Uy = self.global_displacement_vector[ia+1][0]
+                submbr.node_i.Uz = self.global_displacement_vector[ia+2][0]
+                submbr.node_i.phi_x = self.global_displacement_vector[ia+3][0]
+                submbr.node_i.phi_y = self.global_displacement_vector[ia+4][0]
+                submbr.node_i.phi_z = self.global_displacement_vector[ib][0]
+                submbr.node_j.Ux = self.global_displacement_vector[ja][0]
+                submbr.node_j.Uy = self.global_displacement_vector[ja+1][0]
+                submbr.node_j.Uz = self.global_displacement_vector[ja+2][0]
+                submbr.node_j.phi_x = self.global_displacement_vector[ja+3][0]
+                submbr.node_j.phi_y = self.global_displacement_vector[ja+4][0]
+                submbr.node_j.phi_z = self.global_displacement_vector[jb][0]
 
     def AddMemberToKp(self, node_ID_i: int, node_ID_j: int, i_release: bool, j_release: bool, KG: np.ndarray) -> None:
         """Add member stiffness contributions to the global stiffness matrix.
