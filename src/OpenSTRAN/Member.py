@@ -302,7 +302,9 @@ class Member():
             # Return the brace point coordinates
             return (x, y, z)
 
-        if self.bracing == 'quarter':
+        if self.bracing == 'continuous':
+            bracePoints = discretize(self.length, int(f'{self.length:.0f}'))
+        elif self.bracing == 'quarter':
             bracePoints = discretize(self.length, 4)
         elif self.bracing == 'third':
             bracePoints = discretize(self.length, 3)
