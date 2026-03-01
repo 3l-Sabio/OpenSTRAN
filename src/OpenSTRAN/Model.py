@@ -75,7 +75,7 @@ class Model():
         Rmz: list[float] = []
 
         for node in self.nodes.nodes.values():
-            if node.mesh_node != False:
+            if node.mesh_node == False:
                 Rx.append(node.Rx)
                 Ry.append(node.Ry)
                 Rz.append(node.Rz)
@@ -248,3 +248,15 @@ class Model():
                 print(f'\t\tMx = {node.Mx:.2f} kip-ft')
                 print(f'\t\tMy = {node.My:.2f} kip-ft')
                 print(f'\t\tMz = {node.Mz:.2f} kip-ft')
+
+    def max_deflection(self) -> None:
+        Ux: list[float] = []
+        Uy: list[float] = []
+        Uz: list[float] = []
+        for node in self.nodes.nodes.values():
+            Ux.append(node.Ux)
+            Uy.append(node.Uy)
+            Uz.append(node.Uz)
+        self.Ux_max = abs(max(Ux, key=lambda x: abs(x)))
+        self.Uy_max = abs(max(Uy, key=lambda x: abs(x)))
+        self.Uz_max = abs(max(Uz, key=lambda x: abs(x)))
