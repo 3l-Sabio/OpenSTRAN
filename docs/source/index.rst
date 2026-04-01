@@ -12,4 +12,7 @@ OpenSTRAN - Open Source Structural Analysis with Python
    :maxdepth: 2
    :caption: Contents:
 
+   introduction
+   installation
+   examples
    modules
