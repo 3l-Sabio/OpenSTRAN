@@ -128,12 +128,10 @@ class SubMember():
         Returns:
             float: Length between ``node_i`` and ``node_j``.
         """
-        # calculate the x, y and z vector components of the member
-        dx = node_j.coordinates.x - node_i.coordinates.x
-        dy = node_j.coordinates.y - node_i.coordinates.y
-        dz = node_j.coordinates.z - node_i.coordinates.z
+        # calculate the difference in vector components of the member
+        dv = node_j.coordinates.vector - node_i.coordinates.vector
         # calculate and return the member length
-        return (sqrt(dx**2 + dy**2 + dz**2))
+        return float(np.linalg.norm(dv))
 
     def build_rotation_matrix(self, node_i: Node, node_j: Node, i_release: bool, j_release: bool) -> np.ndarray:
         """Build the rotation/transformation matrix for the submember.

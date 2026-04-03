@@ -3,6 +3,7 @@ from .Node import Node
 from .Submember import SubMember
 from .Database.Shape import Shape
 import numpy as np
+from scipy.linalg import inv
 from math import sqrt
 
 from typing import Any
@@ -139,12 +140,10 @@ class Member():
         Returns:
             float: The length of the member in inches.
         """
-        # Calculate the x, y and z vector components of the member
-        dx = node_j.coordinates.x - node_i.coordinates.x
-        dy = node_j.coordinates.y - node_i.coordinates.y
-        dz = node_j.coordinates.z - node_i.coordinates.z
+        # Calculate the difference in vector components of the member
+        dv = node_j.coordinates.vector-node_i.coordinates.vector
         # Calculate and return the member length
-        return (sqrt(dx**2 + dy**2 + dz**2))
+        return float(np.linalg.norm(dv))
 
     def properties(self) -> dict[str, Any]:
         """Return all member properties as a dictionary.
@@ -558,8 +557,8 @@ class Member():
                         f_local[11, 0] = v*a**2*b/submbr.length**2
 
                     # Transform the local force vector to the global reference plane
-                    transformation_matrix = np.matrix(submbr.rotation_matrix)
-                    f_global = transformation_matrix.I*f_local
+                    transformation_matrix = np.asarray(submbr.rotation_matrix)
+                    f_global: np.ndarray = inv(transformation_matrix) @ f_local
 
                     # Add the equivalent nodal forces and moments to each node
                     if submbr.i_release == True and submbr.j_release == False:
@@ -884,8 +883,8 @@ class Member():
                 f_local[11, 0] = 0  # Major axis moment
 
             # Transform the local force vector to the global reference plane
-            transformation_matrix = np.matrix(submbr.rotation_matrix)
-            f_global = transformation_matrix.I*f_local
+            transformation_matrix = np.asarray(submbr.rotation_matrix)
+            f_global: np.ndarray = inv(transformation_matrix) @ f_local
 
             # Add the equivalent nodal forces and moments to each node
             if submbr.i_release == True and submbr.j_release == False:

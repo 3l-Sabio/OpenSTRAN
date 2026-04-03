@@ -12,6 +12,7 @@ description = "Open source structural analysis with Python"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "scipy>=1.17.1",
     "numpy>=2.4.1",
 ]
 license = "MIT"

@@ -2,6 +2,8 @@ from .Nodes import Nodes
 from .Members import Members
 
 import numpy as np
+from scipy.linalg import solve
+import scipy
 
 
 class Solver():
@@ -99,9 +101,9 @@ class Solver():
                         self.restrainedDoF.append(i*6 + n)
 
         # Check pins to see if attached members contribute to stiffness.
-        for DoF in [x-1 for x in self.pinDoF]:
-            if (np.sum(self.Kp[DoF, :]) < 1*10**-6):
-                self.restrainedDoF.append(DoF)
+        # for DoF in [x-1 for x in self.pinDoF]:
+        #    if (np.sum(self.Kp[DoF, :]) < 1*10**-6):
+        #        self.restrainedDoF.append(DoF)
 
         # Remove duplicates from restrained degrees of freedom.
         self.restrainedDoF = list(dict.fromkeys(self.restrainedDoF))
@@ -133,13 +135,12 @@ class Solver():
         # Impose the influence of supports to produce the structure stiffness matrix.
         self.Ks = np.delete(self.Kp, self.restrainedDoF, 0)
         self.Ks = np.delete(self.Ks, self.restrainedDoF, 1)
-        self.Ks = np.matrix(self.Ks)
 
         # Solve for unknown displacements.
         reducedForceVector = np.delete(
             self.force_vector, self.restrainedDoF, 0)
 
-        U = np.linalg.solve(self.Ks, reducedForceVector)
+        U = solve(self.Ks, reducedForceVector)
         self.global_displacement_vector = np.zeros([self.nDoF, 1])
         assert self.global_displacement_vector is not None
         index = 0
