@@ -12,6 +12,7 @@ OpenSTRAN allows for the creation of simple two-dimensional frame elements and c
 * 3D truss ✅
 * 2D frame ✅
 * 3D space frame ✅
+* AISC steel section library ✅
 
 Limitations
 -----------
@@ -21,9 +22,9 @@ Limitations
 * Does not take advantage of matrix sparseness or bandedness.
 * Supports Imperial units only.
 
-Under Development
------------------
+In Development
+--------------
 
-* Second order non-linear analysis
-* Browser supported user interface
-* Utilization checks per the AISC standard
+* Second order non-linear analysis.
+* Browser supported user interface.
+* Steel utilization checks per the ANSI/AISC 360 standard.

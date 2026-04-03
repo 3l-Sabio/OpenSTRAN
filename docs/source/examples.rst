@@ -1,7 +1,7 @@
 Examples
 ========
 
-This section provides examples of how to use OpenSTRAN for structural analysis.
+This section provides examples of how to use OpenSTRAN for structural analysis. The following Quick Start Example will get you up started.
 
 Quick Start Example
 -------------------

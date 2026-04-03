@@ -1,5 +1,5 @@
-OpenSTRAN
-=========
+OpenSTRAN Modules
+=================
 
 .. toctree::
    :maxdepth: 4
@@ -9,4 +9,5 @@ OpenSTRAN
    node
    members
    member
+   shape
    OpenSTRAN

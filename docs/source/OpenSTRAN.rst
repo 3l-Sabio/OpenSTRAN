@@ -1,5 +1,5 @@
-OpenSTRAN package
-=================
+OpenSTRAN API
+=============
 
 Submodules
 ----------
