@@ -46,11 +46,11 @@ OpenSTRAN allows for the creation of simple two-dimensional frame elements and c
 * Supports Imperial units only.
 
 ## What happened to the UI?
-The graphical user interface that was programmed in tkinter and relied on matplotlib as a backend has been removed and is no longer being maintained or further developed.
+The graphical user interface that was programmed using <a href=https://tkdocs.com/shipman/>Tkinter</a> and <a href=https://matplotlib.org/stable/plot_types/basic/plot.html>matplotlib</a> as a backend has been removed and is no longer being further developed. It was slow, not portable across operating systems, and overall a poor implementation for real time structural modeling.
 
-Instead, focus has been shifted to improving the core library, developing documentation, and standardizing output in the <a href="https://vtk.org/">VTK</a> legacy format so that solutions can be visualized using open source post processing visualization tools such as <a href="https://www.paraview.org/">ParaView</a>.
+Instead, focus has been shifted to improving the core library, developing documentation, and standardizing output so that a better user interface can be built in the future. Currently, future development of the user interface is planned to be done using HTML, CSS, and Javascript so that an operating system independent solution can be run natively in any web browser.
 
- The UI was last available in <a href="https://pypi.org/project/OpenSTRAN/0.0.4/">Version 0.0.4</a> and can be installed with the following command.
+ The Tkinter based UI was last available in <a href="https://pypi.org/project/OpenSTRAN/0.0.4/">Version 0.0.4</a> and can be installed with the following command.
 ```bash
 pip install OpenSTRAN==0.0.4
 ```
@@ -74,19 +74,16 @@ Below is a simple example that will help you get started using OpenSTRAN. The ex
 
 ```python
 from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Queries import QuerySteelDb
+from OpenSTRAN.Database.Shape import Shape
 
 # instantiate an empty model
-simpleBeam = Model()
-
-# instantiate a database connection
-query = QuerySteelDb()
+model = Model()
 
 # create a node located at the origin
-N1 = simpleBeam.nodes.add_node(0, 0, 0)  # (X [ft], Y [ft], Z[ft])
+N1 = model.nodes.add_node(0, 0, 0)  # (X [ft], Y [ft], Z[ft])
 
 # create a node 10 feet away from the origin along the global X axis.
-N2 = simpleBeam.nodes.add_node(10, 0, 0)  # (X [ft], Y [ft], Z[ft])
+N2 = model.nodes.add_node(10, 0, 0)  # (X [ft], Y [ft], Z[ft])
 
 # restrain the nodes from translation.
 N1.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
@@ -97,24 +94,21 @@ E = 29000  # ksi - modulus of elasticity for steel
 G = 12000  # ksi - shear modulus for steel
 
 # import W12x14 member properties from the database
-section = query.get_section_properties("W12X14")
-Ixx = float(section['Ix'][0])
-Iyy = float(section['Iy'][0])
-A = float(section['A'][0])
-J = float(section['J'][0])
+s = Shape("W12X14")
 
-# define a member between nodes N1 and N2.
-M1 = simpleBeam.members.add_member(N1, N2, i_release=False, j_release=False,
-                                   E=E, Ixx=Ixx, Iyy=Iyy, A=A, G=G, J=J, mesh=50, bracing="continuous")
+M1 = model.members.add_member(N1, N2, shape=s)
 
-# add a load of -1 kips in the global Y direction along M1's span.
+# add a load of -1 kips per lineal foot in the global Y direction along M1's span.
 M1.add_distributed_load(-1, -1, 'Y', 0, 100)
 
 # solve the model.
-simpleBeam.solve()
+model.solve()
+
+# perform post processing steps on the model
+model.max_deflection()
 
 # print the nodal reactions to the terminal.
-simpleBeam.reactions()
+model.reactions()
 ```
 ```bash
 Nodal Reactions
@@ -132,4 +126,6 @@ Nodal Reactions
                 Mx = 0.00 kip-ft
                 My = 0.00 kip-ft
                 Mz = 0.00 kip-ft
+
+
 ```
