@@ -417,9 +417,6 @@ class Member():
         # Instantiate a variable measuring distance along the member
         l1 = 0
 
-        # Acceptable floating-point error tolerance to consider load at a node
-        pointError = 1*10**-10
-
         # Iterate through the submembers
         for _, submbr in self.submembers.items():
 
@@ -458,7 +455,7 @@ class Member():
                     )
 
                 # Check if the load lands on node i of the submember
-                if l1-pointError < location < l1+pointError:
+                if l1 < location < l1:
                     # Add the X component of the load
                     submbr.node_i.add_load(mag=fg[0], lType='v', direction='X')
 
@@ -469,7 +466,7 @@ class Member():
                     submbr.node_i.add_load(mag=fg[2], lType='v', direction='Z')
 
                 # Check if the load lands on node j of the submember
-                elif l2-pointError < location < l2+pointError:
+                elif l2 < location < l2:
                     # Add the X component of the load
                     submbr.node_j.add_load(mag=fg[0], lType='v', direction='X')
 
