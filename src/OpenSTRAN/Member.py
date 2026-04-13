@@ -23,8 +23,8 @@ class Member():
         nodes (Nodes): Reference to the Nodes collection object.
         node_i (Node): Start node of the member.
         node_j (Node): End node of the member.
-        i_release (bool): Boundary condition at node i (False = fixed, True = pinned).
-        j_release (bool): Boundary condition at node j (False = fixed, True = pinned).
+        i_release (list[int]): Boundary condition at node i.
+        j_release (list[int]): Boundary condition at node j.
         E (float): Young's modulus in ksi.
         Ixx (float): Strong axis moment of inertia in in^4.
         Iyy (float): Weak axis moment of inertia in in^4.
@@ -45,8 +45,8 @@ class Member():
     nodes: Nodes
     node_i: Node
     node_j: Node
-    i_release: bool
-    j_release: bool
+    i_release: list[int]
+    j_release: list[int]
     E: float
     Ixx: float
     Iyy: float
@@ -77,7 +77,22 @@ class Member():
             self.add_mesh(self.nodes, self.node_i,
                           self.node_j, self.mesh, self.length)
         ):
-            if i+1 == 1:
+            if self.mesh == 1:
+                i = self.node_i
+                j = self.node_j
+                self.add_submember(
+                    i,
+                    j,
+                    self.i_release,
+                    self.j_release,
+                    self.E,
+                    self.Ixx,
+                    self.Iyy,
+                    self.A,
+                    self.G,
+                    self.J)
+
+            elif i+1 == 1:
                 i = self.node_i
                 j = node
 
@@ -85,7 +100,7 @@ class Member():
                     i,
                     j,
                     self.i_release,
-                    False,
+                    [0, 0, 0, 0, 0, 0],
                     self.E,
                     self.Ixx,
                     self.Iyy,
@@ -100,8 +115,8 @@ class Member():
                 self.add_submember(
                     i,
                     j,
-                    False,
-                    False,
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
                     self.E,
                     self.Ixx,
                     self.Iyy,
@@ -117,7 +132,7 @@ class Member():
                 self.add_submember(
                     i,
                     j,
-                    False,
+                    [0, 0, 0, 0, 0, 0],
                     self.j_release,
                     self.E,
                     self.Ixx,
@@ -138,7 +153,7 @@ class Member():
             node_j (Node): End node of the member.
 
         Returns:
-            float: The length of the member in inches.
+            float: The length of the member.
         """
         # Calculate the difference in vector components of the member
         dv = node_j.coordinates.vector-node_i.coordinates.vector
@@ -200,8 +215,8 @@ class Member():
         self,
         node_i: Node,
         node_j: Node,
-        i_release: bool,
-        j_release: bool,
+        i_release: list[int],
+        j_release: list[int],
         E: float,
         Ixx: float,
         Iyy: float,
@@ -218,8 +233,8 @@ class Member():
         Args:
             node_i (Node): Start node of the submember.
             node_j (Node): End node of the submember.
-            i_release (bool): Release condition at start node (False = fixed, True = pinned).
-            j_release (bool): Release condition at end node (False = fixed, True = pinned).
+            i_release (list[int]): Release conditions at start node.
+            j_release (list[int]): Release conditions at end node.
             E (float): Young's modulus in ksi.
             Ixx (float): Strong axis moment of inertia in in^4.
             Iyy (float): Weak axis moment of inertia in in^4.
@@ -497,168 +512,64 @@ class Member():
                     t = FL[2]
 
                     # Calculate equivalent nodal actions
-                    if submbr.i_release == True and submbr.j_release == False:
-                        # instantiate an array to hold equivalent nodal actions
-                        f_local = np.zeros([10, 1])
+                    # Instantiate an array to hold equivalent nodal actions
+                    f_local = np.zeros([12, 1])
 
-                        f_local[0, 0] = axial*b/(submbr.length)
-                        f_local[1, 0] = v*b**2 * \
-                            (a+2*submbr.length)/(2*submbr.length**3)
-                        f_local[2, 0] = t*b**2 * \
-                            (a+2*submbr.length)/(2*submbr.length**3)
-                        f_local[4, 0] = axial*a/(submbr.length)
-                        f_local[5, 0] = v*a * \
-                            (3*submbr.length**2-a**2)/(2*submbr.length**3)
-                        f_local[6, 0] = t*a * \
-                            (3*submbr.length**2-a**2)/(2*submbr.length**3)
-                        f_local[8, 0] = t*a*b * \
-                            (a+submbr.length)/(2*submbr.length**2)
-                        f_local[9, 0] = v*a*b * \
-                            (a+submbr.length)/(2*submbr.length**2)
+                    # Forces at node i
+                    f_local[0, 0] = axial*b/(submbr.length)
+                    f_local[1, 0] = v*b**2*(3*a+b)/submbr.length**3
+                    f_local[2, 0] = t*b**2*(3*a+b)/submbr.length**3
+                    f_local[4, 0] = -t*a*b**2/submbr.length**2
+                    f_local[5, 0] = -v*a*b**2/submbr.length**2
 
-                    elif submbr.i_release == False and submbr.j_release == True:
-                        # Instantiate an array to hold equivalent nodal actions
-                        f_local = np.zeros([10, 1])
-
-                        f_local[0, 0] = axial*b/(submbr.length)
-                        f_local[1, 0] = v*b * \
-                            (3*submbr.length**2-b**2)/(2*submbr.length**3)
-                        f_local[2, 0] = t*b * \
-                            (3*submbr.length**2-b**2)/(2*submbr.length**3)
-                        f_local[4, 0] = -t*b*a * \
-                            (b+submbr.length)/(2*submbr.length**2)
-                        f_local[5, 0] = -v*b*a * \
-                            (b+submbr.length)/(2*submbr.length**2)
-                        f_local[6, 0] = axial*a/(submbr.length)
-                        f_local[7, 0] = v*a**2 * \
-                            (b+2*submbr.length)/(2*submbr.length**3)
-                        f_local[8, 0] = t*a**2 * \
-                            (b+2*submbr.length)/(2*submbr.length**3)
-
-                    else:
-                        # Instantiate an array to hold equivalent nodal actions
-                        f_local = np.zeros([12, 1])
-
-                        # Forces at node i
-                        f_local[0, 0] = axial*b/(submbr.length)
-                        f_local[1, 0] = v*b**2*(3*a+b)/submbr.length**3
-                        f_local[2, 0] = t*b**2*(3*a+b)/submbr.length**3
-                        f_local[4, 0] = -t*a*b**2/submbr.length**2
-                        f_local[5, 0] = -v*a*b**2/submbr.length**2
-
-                        # Forces at node j
-                        f_local[6, 0] = axial*a/(submbr.length)
-                        f_local[7, 0] = v*a**2*(a+3*b)/submbr.length**3
-                        f_local[8, 0] = t*a**2*(a+3*b)/submbr.length**3
-                        f_local[10, 0] = t*a**2*b/submbr.length**2
-                        f_local[11, 0] = v*a**2*b/submbr.length**2
+                    # Forces at node j
+                    f_local[6, 0] = axial*a/(submbr.length)
+                    f_local[7, 0] = v*a**2*(a+3*b)/submbr.length**3
+                    f_local[8, 0] = t*a**2*(a+3*b)/submbr.length**3
+                    f_local[10, 0] = t*a**2*b/submbr.length**2
+                    f_local[11, 0] = v*a**2*b/submbr.length**2
 
                     # Transform the local force vector to the global reference plane
                     transformation_matrix = np.asarray(submbr.rotation_matrix)
                     f_global: np.ndarray = inv(transformation_matrix) @ f_local
 
                     # Add the equivalent nodal forces and moments to each node
-                    if submbr.i_release == True and submbr.j_release == False:
-                        submbr.node_i.Fx += f_global[0, 0]
-                        submbr.node_i.Fy += f_global[1, 0]
-                        submbr.node_i.Fz += f_global[2, 0]
-                        submbr.node_i.Mx += f_global[3, 0]
-                        submbr.node_j.Fx += f_global[4, 0]
-                        submbr.node_j.Fy += f_global[5, 0]
-                        submbr.node_j.Fz += f_global[6, 0]
-                        submbr.node_j.Mx += f_global[7, 0]
-                        submbr.node_j.My += f_global[8, 0]
-                        submbr.node_j.Mz += f_global[9, 0]
+                    submbr.node_i.Fx += f_global[0, 0]
+                    submbr.node_i.Fy += f_global[1, 0]
+                    submbr.node_i.Fz += f_global[2, 0]
+                    submbr.node_i.Mx += f_global[3, 0]
+                    submbr.node_i.My += f_global[4, 0]
+                    submbr.node_i.Mz += f_global[5, 0]
+                    submbr.node_j.Fx += f_global[6, 0]
+                    submbr.node_j.Fy += f_global[7, 0]
+                    submbr.node_j.Fz += f_global[8, 0]
+                    submbr.node_j.Mx += f_global[9, 0]
+                    submbr.node_j.My += f_global[10, 0]
+                    submbr.node_j.Mz += f_global[11, 0]
 
-                        submbr.node_i.eFx += f_global[0, 0]
-                        submbr.node_i.eFy += f_global[1, 0]
-                        submbr.node_i.eFz += f_global[2, 0]
-                        submbr.node_i.eMx += f_global[3, 0]
-                        submbr.node_j.eFx += f_global[4, 0]
-                        submbr.node_j.eFy += f_global[5, 0]
-                        submbr.node_j.eFz += f_global[6, 0]
-                        submbr.node_j.eMx += f_global[7, 0]
-                        submbr.node_j.eMy += f_global[8, 0]
-                        submbr.node_j.eMz += f_global[9, 0]
+                    submbr.node_i.eFx += f_global[0, 0]
+                    submbr.node_i.eFy += f_global[1, 0]
+                    submbr.node_i.eFz += f_global[2, 0]
+                    submbr.node_i.eMx += f_global[3, 0]
+                    submbr.node_i.eMy += f_global[4, 0]
+                    submbr.node_i.eMz += f_global[5, 0]
+                    submbr.node_j.eFx += f_global[6, 0]
+                    submbr.node_j.eFy += f_global[7, 0]
+                    submbr.node_j.eFz += f_global[8, 0]
+                    submbr.node_j.eMx += f_global[9, 0]
+                    submbr.node_j.eMy += f_global[10, 0]
+                    submbr.node_j.eMz += f_global[11, 0]
 
-                        submbr.ENAs['axial'][0] += f_local[0, 0]
-                        submbr.ENAs['axial'][1] += f_local[4, 0]
-                        submbr.ENAs['shear'][0] += f_local[1, 0]
-                        submbr.ENAs['shear'][1] += f_local[5, 0]
-                        submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-                        submbr.ENAs['transverse shear'][1] += f_local[6, 0]
-                        submbr.ENAs['minor axis moments'][0] += f_local[8, 0]
-                        submbr.ENAs['major axis moments'][1] += f_local[9, 0]
-
-                    elif submbr.i_release == False and submbr.j_release == True:
-                        submbr.node_i.Fx += f_global[0, 0]
-                        submbr.node_i.Fy += f_global[1, 0]
-                        submbr.node_i.Fz += f_global[2, 0]
-                        submbr.node_i.Mx += f_global[3, 0]
-                        submbr.node_i.My += f_global[4, 0]
-                        submbr.node_i.Mz += f_global[5, 0]
-                        submbr.node_j.Fx += f_global[6, 0]
-                        submbr.node_j.Fy += f_global[7, 0]
-                        submbr.node_j.Fz += f_global[8, 0]
-                        submbr.node_j.Mx += f_global[9, 0]
-
-                        submbr.node_i.eFx += f_global[0, 0]
-                        submbr.node_i.eFy += f_global[1, 0]
-                        submbr.node_i.eFz += f_global[2, 0]
-                        submbr.node_i.eMx += f_global[3, 0]
-                        submbr.node_i.eMy += f_global[4, 0]
-                        submbr.node_i.eMz += f_global[5, 0]
-                        submbr.node_j.eFx += f_global[6, 0]
-                        submbr.node_j.eFy += f_global[7, 0]
-                        submbr.node_j.eFz += f_global[8, 0]
-                        submbr.node_j.eMx += f_global[9, 0]
-
-                        submbr.ENAs['axial'][0] += f_local[0, 0]
-                        submbr.ENAs['axial'][1] += f_local[6, 0]
-                        submbr.ENAs['shear'][0] += f_local[1, 0]
-                        submbr.ENAs['shear'][1] += f_local[7, 0]
-                        submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-                        submbr.ENAs['transverse shear'][1] += f_local[8, 0]
-                        submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
-                        submbr.ENAs['major axis moments'][1] += f_local[5, 0]
-
-                    else:
-                        submbr.node_i.Fx += f_global[0, 0]
-                        submbr.node_i.Fy += f_global[1, 0]
-                        submbr.node_i.Fz += f_global[2, 0]
-                        submbr.node_i.Mx += f_global[3, 0]
-                        submbr.node_i.My += f_global[4, 0]
-                        submbr.node_i.Mz += f_global[5, 0]
-                        submbr.node_j.Fx += f_global[6, 0]
-                        submbr.node_j.Fy += f_global[7, 0]
-                        submbr.node_j.Fz += f_global[8, 0]
-                        submbr.node_j.Mx += f_global[9, 0]
-                        submbr.node_j.My += f_global[10, 0]
-                        submbr.node_j.Mz += f_global[11, 0]
-
-                        submbr.node_i.eFx += f_global[0, 0]
-                        submbr.node_i.eFy += f_global[1, 0]
-                        submbr.node_i.eFz += f_global[2, 0]
-                        submbr.node_i.eMx += f_global[3, 0]
-                        submbr.node_i.eMy += f_global[4, 0]
-                        submbr.node_i.eMz += f_global[5, 0]
-                        submbr.node_j.eFx += f_global[6, 0]
-                        submbr.node_j.eFy += f_global[7, 0]
-                        submbr.node_j.eFz += f_global[8, 0]
-                        submbr.node_j.eMx += f_global[9, 0]
-                        submbr.node_j.eMy += f_global[10, 0]
-                        submbr.node_j.eMz += f_global[11, 0]
-
-                        submbr.ENAs['axial'][0] += f_local[0, 0]
-                        submbr.ENAs['axial'][1] += f_local[6, 0]
-                        submbr.ENAs['shear'][0] += f_local[1, 0]
-                        submbr.ENAs['shear'][1] += f_local[7, 0]
-                        submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-                        submbr.ENAs['transverse shear'][1] += f_local[8, 0]
-                        submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
-                        submbr.ENAs['minor axis moments'][1] += f_local[10, 0]
-                        submbr.ENAs['major axis moments'][0] += f_local[5, 0]
-                        submbr.ENAs['major axis moments'][1] += f_local[11, 0]
+                    submbr.ENAs['axial'][0] += f_local[0, 0]
+                    submbr.ENAs['axial'][1] += f_local[6, 0]
+                    submbr.ENAs['shear'][0] += f_local[1, 0]
+                    submbr.ENAs['shear'][1] += f_local[7, 0]
+                    submbr.ENAs['transverse shear'][0] += f_local[2, 0]
+                    submbr.ENAs['transverse shear'][1] += f_local[8, 0]
+                    submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
+                    submbr.ENAs['minor axis moments'][1] += f_local[10, 0]
+                    submbr.ENAs['major axis moments'][0] += f_local[5, 0]
+                    submbr.ENAs['major axis moments'][1] += f_local[11, 0]
 
                 break
 
@@ -794,197 +705,80 @@ class Member():
             td = t2 - t1
             tm = (t1+t2)/2
 
-            if submbr.i_release == False and submbr.j_release == False:
-                # Instantiate a local force vector
-                f_local = np.zeros([12, 1])
+            # Instantiate a local force vector
+            f_local: np.ndarray = np.zeros([12, 1])
 
-                # Calculate the geometric constants
-                s1 = 10*((l**2+a**2)*(l+a)-(a**2+b**2)*(a-b)-l*b*(l+b)-a**3)
-                s2 = lw*(l*(2*l+a+b)-3*(a-b)**2-2*a*b)
-                s3 = 120*a*b*(a+lw)+10*lw*(6*a**2+4*l*lw-3*lw**2)
-                s4 = 10*l*lw**2-10*lw*a*(l-3*b)-9*lw**3
+            # Calculate the geometric constants
+            s1 = 10*((l**2+a**2)*(l+a)-(a**2+b**2)*(a-b)-l*b*(l+b)-a**3)
+            s2 = lw*(l*(2*l+a+b)-3*(a-b)**2-2*a*b)
+            s3 = 120*a*b*(a+lw)+10*lw*(6*a**2+4*l*lw-3*lw**2)
+            s4 = 10*l*lw**2-10*lw*a*(l-3*b)-9*lw**3
 
-                # forces at node j
-                f_local[6, 0] = (a1+a2)*submbr.length/2  # axial
-                f_local[7, 0] = (lw*(s1*vm+s2*vd))/(20*l**3)  # normal shear
-                f_local[8, 0] = (lw*(s1*tm+s2*td)) / \
-                    (20*l**3)  # transverse shear
-                f_local[10, 0] = -(lw*(s3*tm+s4*td)) / \
-                    (120*l**2)  # minor axis moment
-                f_local[11, 0] = -(lw*(s3*vm+s4*vd)) / \
-                    (120*l**2)  # major axis moment
+            # forces at node j
+            f_local[6, 0] = (a1+a2)*submbr.length/2  # axial
+            f_local[7, 0] = (lw*(s1*vm+s2*vd))/(20*l**3)  # normal shear
+            f_local[8, 0] = (lw*(s1*tm+s2*td)) / \
+                (20*l**3)  # transverse shear
+            f_local[10, 0] = -(lw*(s3*tm+s4*td)) / \
+                (120*l**2)  # minor axis moment
+            f_local[11, 0] = -(lw*(s3*vm+s4*vd)) / \
+                (120*l**2)  # major axis moment
 
-                # Forces at node i
-                vj = f_local[7, 0]  # Normal shear force at node j
-                tj = f_local[8, 0]  # Transverse shear force at node j
-                mj = f_local[10, 0]  # Minor axis moment at node j
-                Mj = f_local[11, 0]  # Major axis moment at node j
+            # Forces at node i
+            vj = f_local[7, 0]  # Normal shear force at node j
+            tj = f_local[8, 0]  # Transverse shear force at node j
+            mj = f_local[10, 0]  # Minor axis moment at node j
+            Mj = f_local[11, 0]  # Major axis moment at node j
 
-                f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
-                f_local[1, 0] = lw*vm-vj  # normal shear
-                f_local[2, 0] = lw*tm-tj  # transverse shear
-                f_local[4, 0] = mj+tj*l-a*lw*tm - \
-                    (lw**2*(2*t2+t1))/6  # minor axis moment
-                f_local[5, 0] = Mj+vj*l-a*lw*vm - \
-                    (lw**2*(2*v2+v1))/6  # major axis moment
-
-            elif submbr.i_release == True and submbr.j_release == False:
-                # Instantiate a local force vector
-                f_local = np.zeros([12, 1])
-
-                s1 = 40*l*(2*l**2-lw**2)+10*lw * \
-                    (lw**2-2*b**2)-40*b*(l-a)*(2*l+a)
-                s2 = lw*(3*lw**2-10*l*(lw+2*b)+10*b*(b+lw))
-
-                # Forces at node i
-                f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
-                f_local[1, 0] = (lw*(s1*vm+s2*vd))/(80*l**3)  # normal shear
-                f_local[2, 0] = (lw*(s1*tm+s2*td)) / \
-                    (80*l**3)  # transverse shear
-                f_local[4, 0] = 0  # minor axis moment
-                f_local[5, 0] = 0  # major axis moment
-
-                # forces at node j
-                f_local[6, 0] = (a1+a2)*submbr.length/2  # axial
-                f_local[7, 0] = lw*vm-f_local[1, 0]  # normal shear
-                f_local[8, 0] = lw*vm-f_local[2, 0]  # transverse shear
-                f_local[10, 0] = f_local[8, 0]*l-b*lw*tm - \
-                    (lw**2*(2*t2+t1))/6  # minor axis moment
-                f_local[11, 0] = f_local[7, 0]*l-b*lw*vm - \
-                    (lw**2*(2*v2+v1))/6  # major axis moment
-
-            else:
-                # Instantiate a local force vector
-                # (submbr.i_release == False and submbr.j_release == True)
-                f_local = np.zeros([12, 1])
-
-                s1 = 40*l*(2*l**2-lw**2)+10*lw * \
-                    (lw**2-2*a**2)-40*a*(l-b)*(2*l+b)
-                s2 = lw*(3*lw**2-10*l*(lw+2*a)+10*a*(a+lw))
-
-                # Forces at node i
-                f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
-                f_local[1, 0] = (lw*(s1*vm+s2*vd))/(80*l**3)  # normal shear
-                f_local[2, 0] = (lw*(s1*tm+s2*td)) / \
-                    (80*l**3)  # transverse shear
-                f_local[4, 0] = f_local[2, 0]*l-a*lw*tm - \
-                    (lw**2*(2*t2+t1))/6  # minor axis moment
-                f_local[5, 0] = f_local[1, 0]*l-a*lw*vm - \
-                    (lw**2*(2*v2+v1))/6  # major axis moment
-
-                # Forces at node j
-                f_local[6, 0] = (a1+a2)*submbr.length/2  # Axial
-                f_local[7, 0] = lw*vm-f_local[1, 0]  # Normal shear
-                f_local[8, 0] = lw*vm-f_local[2, 0]  # Transverse shear
-                f_local[10, 0] = 0  # Minor axis moment
-                f_local[11, 0] = 0  # Major axis moment
+            f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
+            f_local[1, 0] = lw*vm-vj  # normal shear
+            f_local[2, 0] = lw*tm-tj  # transverse shear
+            f_local[4, 0] = mj+tj*l-a*lw*tm - \
+                (lw**2*(2*t2+t1))/6  # minor axis moment
+            f_local[5, 0] = Mj+vj*l-a*lw*vm - \
+                (lw**2*(2*v2+v1))/6  # major axis moment
 
             # Transform the local force vector to the global reference plane
             transformation_matrix = np.asarray(submbr.rotation_matrix)
             f_global: np.ndarray = inv(transformation_matrix) @ f_local
 
             # Add the equivalent nodal forces and moments to each node
-            if submbr.i_release == True and submbr.j_release == False:
-                submbr.node_i.Fx += f_global[0, 0]
-                submbr.node_i.Fy += f_global[1, 0]
-                submbr.node_i.Fz += f_global[2, 0]
-                submbr.node_i.Mx += f_global[3, 0]
-                submbr.node_j.Fx += f_global[4, 0]
-                submbr.node_j.Fy += f_global[5, 0]
-                submbr.node_j.Fz += f_global[6, 0]
-                submbr.node_j.Mx += f_global[7, 0]
-                submbr.node_j.My += f_global[8, 0]
-                submbr.node_j.Mz += f_global[9, 0]
+            submbr.node_i.Fx += f_global[0, 0]
+            submbr.node_i.Fy += f_global[1, 0]
+            submbr.node_i.Fz += f_global[2, 0]
+            submbr.node_i.Mx += f_global[3, 0]
+            submbr.node_i.My += f_global[4, 0]
+            submbr.node_i.Mz += f_global[5, 0]
+            submbr.node_j.Fx += f_global[6, 0]
+            submbr.node_j.Fy += f_global[7, 0]
+            submbr.node_j.Fz += f_global[8, 0]
+            submbr.node_j.Mx += f_global[9, 0]
+            submbr.node_j.My += f_global[10, 0]
+            submbr.node_j.Mz += f_global[11, 0]
 
-                submbr.node_i.eFx += f_global[0, 0]
-                submbr.node_i.eFy += f_global[1, 0]
-                submbr.node_i.eFz += f_global[2, 0]
-                submbr.node_i.eMx += f_global[3, 0]
-                submbr.node_j.eFx += f_global[4, 0]
-                submbr.node_j.eFy += f_global[5, 0]
-                submbr.node_j.eFz += f_global[6, 0]
-                submbr.node_j.eMx += f_global[7, 0]
-                submbr.node_j.eMy += f_global[8, 0]
-                submbr.node_j.eMz += f_global[9, 0]
+            submbr.node_i.eFx += f_global[0, 0]
+            submbr.node_i.eFy += f_global[1, 0]
+            submbr.node_i.eFz += f_global[2, 0]
+            submbr.node_i.eMx += f_global[3, 0]
+            submbr.node_i.eMy += f_global[4, 0]
+            submbr.node_i.eMz += f_global[5, 0]
+            submbr.node_j.eFx += f_global[6, 0]
+            submbr.node_j.eFy += f_global[7, 0]
+            submbr.node_j.eFz += f_global[8, 0]
+            submbr.node_j.eMx += f_global[9, 0]
+            submbr.node_j.eMy += f_global[10, 0]
+            submbr.node_j.eMz += f_global[11, 0]
 
-                submbr.ENAs['axial'][0] += f_local[0, 0]
-                submbr.ENAs['axial'][1] += f_local[4, 0]
-                submbr.ENAs['shear'][0] += f_local[1, 0]
-                submbr.ENAs['shear'][1] += f_local[5, 0]
-                submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-                submbr.ENAs['transverse shear'][1] += f_local[6, 0]
-                submbr.ENAs['minor axis moments'][0] += f_local[8, 0]
-                submbr.ENAs['major axis moments'][1] += f_local[9, 0]
-
-            elif submbr.i_release == False and submbr.j_release == True:
-                submbr.node_i.Fx += f_global[0, 0]
-                submbr.node_i.Fy += f_global[1, 0]
-                submbr.node_i.Fz += f_global[2, 0]
-                submbr.node_i.Mx += f_global[3, 0]
-                submbr.node_i.My += f_global[4, 0]
-                submbr.node_i.Mz += f_global[5, 0]
-                submbr.node_j.Fx += f_global[6, 0]
-                submbr.node_j.Fy += f_global[7, 0]
-                submbr.node_j.Fz += f_global[8, 0]
-                submbr.node_j.Mx += f_global[9, 0]
-
-                submbr.node_i.eFx += f_global[0, 0]
-                submbr.node_i.eFy += f_global[1, 0]
-                submbr.node_i.eFz += f_global[2, 0]
-                submbr.node_i.eMx += f_global[3, 0]
-                submbr.node_i.eMy += f_global[4, 0]
-                submbr.node_i.eMz += f_global[5, 0]
-                submbr.node_j.eFx += f_global[6, 0]
-                submbr.node_j.eFy += f_global[7, 0]
-                submbr.node_j.eFz += f_global[8, 0]
-                submbr.node_j.eMx += f_global[9, 0]
-
-                submbr.ENAs['axial'][0] += f_local[0, 0]
-                submbr.ENAs['axial'][1] += f_local[6, 0]
-                submbr.ENAs['shear'][0] += f_local[1, 0]
-                submbr.ENAs['shear'][1] += f_local[7, 0]
-                submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-                submbr.ENAs['transverse shear'][1] += f_local[8, 0]
-                submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
-                submbr.ENAs['major axis moments'][1] += f_local[5, 0]
-
-            else:
-                submbr.node_i.Fx += f_global[0, 0]
-                submbr.node_i.Fy += f_global[1, 0]
-                submbr.node_i.Fz += f_global[2, 0]
-                submbr.node_i.Mx += f_global[3, 0]
-                submbr.node_i.My += f_global[4, 0]
-                submbr.node_i.Mz += f_global[5, 0]
-                submbr.node_j.Fx += f_global[6, 0]
-                submbr.node_j.Fy += f_global[7, 0]
-                submbr.node_j.Fz += f_global[8, 0]
-                submbr.node_j.Mx += f_global[9, 0]
-                submbr.node_j.My += f_global[10, 0]
-                submbr.node_j.Mz += f_global[11, 0]
-
-                submbr.node_i.eFx += f_global[0, 0]
-                submbr.node_i.eFy += f_global[1, 0]
-                submbr.node_i.eFz += f_global[2, 0]
-                submbr.node_i.eMx += f_global[3, 0]
-                submbr.node_i.eMy += f_global[4, 0]
-                submbr.node_i.eMz += f_global[5, 0]
-                submbr.node_j.eFx += f_global[6, 0]
-                submbr.node_j.eFy += f_global[7, 0]
-                submbr.node_j.eFz += f_global[8, 0]
-                submbr.node_j.eMx += f_global[9, 0]
-                submbr.node_j.eMy += f_global[10, 0]
-                submbr.node_j.eMz += f_global[11, 0]
-
-                submbr.ENAs['axial'][0] += f_local[0, 0]
-                submbr.ENAs['axial'][1] += f_local[6, 0]
-                submbr.ENAs['shear'][0] += f_local[1, 0]
-                submbr.ENAs['shear'][1] += f_local[7, 0]
-                submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-                submbr.ENAs['transverse shear'][1] += f_local[8, 0]
-                submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
-                submbr.ENAs['minor axis moments'][1] += f_local[10, 0]
-                submbr.ENAs['major axis moments'][0] += f_local[5, 0]
-                submbr.ENAs['major axis moments'][1] += f_local[11, 0]
+            submbr.ENAs['axial'][0] += f_local[0, 0]
+            submbr.ENAs['axial'][1] += f_local[6, 0]
+            submbr.ENAs['shear'][0] += f_local[1, 0]
+            submbr.ENAs['shear'][1] += f_local[7, 0]
+            submbr.ENAs['transverse shear'][0] += f_local[2, 0]
+            submbr.ENAs['transverse shear'][1] += f_local[8, 0]
+            submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
+            submbr.ENAs['minor axis moments'][1] += f_local[10, 0]
+            submbr.ENAs['major axis moments'][0] += f_local[5, 0]
+            submbr.ENAs['major axis moments'][1] += f_local[11, 0]
 
             l1 = l2
 

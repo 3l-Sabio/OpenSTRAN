@@ -33,8 +33,8 @@ class Members():
         self,
         node_i: Node,
         node_j: Node,
-        i_release: bool = False,
-        j_release: bool = False,
+        i_release: list[int] = [0, 0, 0, 0, 0, 0],
+        j_release: list[int] = [0, 0, 0, 0, 0, 0],
         E: float = 29000.0,
         Ixx: float = 88.6,
         Iyy: float = 2.36,
@@ -50,9 +50,9 @@ class Members():
         Args:
             node_i (Node): Start node of the member.
             node_j (Node): End node of the member.
-            i_release (bool, optional): True if start node is released (pinned).
+            i_release (list[int], optional): start node end releases.
                 Defaults to False.
-            j_release (bool, optional): True if end node is released (pinned).
+            j_release (list[int], optional): end node end releases.
                 Defaults to False.
             E (float, optional): Young's modulus in ksi. Defaults to 29000.0.
             Ixx (float, optional): Moment of inertia about the strong axis in

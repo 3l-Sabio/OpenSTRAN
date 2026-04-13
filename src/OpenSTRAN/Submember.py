@@ -19,8 +19,8 @@ class SubMember():
     Parameters:
         node_i (Node): Start node of the submember.
         node_j (Node): End node of the submember.
-        i_release (bool): Release (pinned) flag at the start node.
-        j_release (bool): Release (pinned) flag at the end node.
+        i_release (list[int]): DOF releases at the start node.
+        j_release (list[int]): DOF releases at the end node.
         E (float): Young's modulus.
         Ixx (float): Moment of inertia about the strong axis.
         Iyy (float): Moment of inertia about the weak axis.
@@ -37,8 +37,8 @@ class SubMember():
     """
     node_i: Node
     node_j: Node
-    i_release: bool
-    j_release: bool
+    i_release: list[int]
+    j_release: list[int]
     E: float
     Ixx: float
     Iyy: float
@@ -96,9 +96,7 @@ class SubMember():
         # member local coordinates to a global reference frame
         self.rotation_matrix = self.build_rotation_matrix(
             self.node_i,
-            self.node_j,
-            self.i_release,
-            self.j_release
+            self.node_j
         )
 
         self.transformation_matrix = self.rotation_matrix.T
@@ -113,6 +111,9 @@ class SubMember():
             self.J,
             self.length
         )
+
+        # release DoFs
+        self.Kl = self.pin(self.Kl)
 
         # calculate the member global stiffness matrix
         self.Kg = self.transformation_matrix.T.dot(
@@ -133,19 +134,16 @@ class SubMember():
         # calculate and return the member length
         return float(np.linalg.norm(dv))
 
-    def build_rotation_matrix(self, node_i: Node, node_j: Node, i_release: bool, j_release: bool) -> np.ndarray:
+    def build_rotation_matrix(self, node_i: Node, node_j: Node) -> np.ndarray:
         """Build the rotation/transformation matrix for the submember.
 
         Establishes the local x,y,z unit vectors using a Gram-Schmidt
         approach and constructs the transformation matrix between the
-        local element frame and the global frame. The size of the
-        returned matrix depends on release conditions.
+        local element frame and the global frame.
 
         Args:
             node_i (Node): Start node.
             node_j (Node): End node.
-            i_release (bool): Release flag at node i.
-            j_release (bool): Release flag at node j.
 
         Returns:
             np.ndarray: Transformation matrix mapping local DOFs to global DOFs.
@@ -206,517 +204,203 @@ class SubMember():
             [local_x_unit, local_y_unit, local_z_unit,]).T
 
         # populate the rotation matrix with the proper values
-
-        if i_release == False and j_release == False:
-            transformation_matrix = np.zeros((12, 12))
-            transformation_matrix[0:3, 0:3] = rotation_matrix
-            transformation_matrix[3:6, 3:6] = rotation_matrix
-            transformation_matrix[6:9, 6:9] = rotation_matrix
-            transformation_matrix[9:12, 9:12] = rotation_matrix
-        elif i_release == True and j_release == False:
-            transformation_matrix = np.zeros((10, 10))
-            transformation_matrix[0:3, 0:3] = rotation_matrix
-            transformation_matrix[3, 3] = rotation_matrix[0, 0]
-            transformation_matrix[4:7, 4:7] = rotation_matrix
-            transformation_matrix[7:10, 7:10] = rotation_matrix
-        elif i_release == False and j_release == True:
-            transformation_matrix = np.zeros((10, 10))
-            transformation_matrix[0:3, 0:3] = rotation_matrix
-            transformation_matrix[3:6, 3:6] = rotation_matrix
-            transformation_matrix[6:9, 6:9] = rotation_matrix
-            transformation_matrix[9, 9] = rotation_matrix[0, 0]
-        else:
-            transformation_matrix = np.zeros((6, 6))
-            transformation_matrix[0:3, 0:3] = rotation_matrix
-            transformation_matrix[3:6, 3:6] = rotation_matrix
+        transformation_matrix = np.zeros((12, 12))
+        transformation_matrix[0:3, 0:3] = rotation_matrix
+        transformation_matrix[3:6, 3:6] = rotation_matrix
+        transformation_matrix[6:9, 6:9] = rotation_matrix
+        transformation_matrix[9:12, 9:12] = rotation_matrix
 
         return (transformation_matrix)
 
     def build_stiffness_matrix(self, E: float, Izz: float, Iyy: float, A: float, G: float, J: float, l: float) -> np.ndarray:
         # Convert units automatically in the future (based on units passed).
         l = float(l*12)
-        if self.i_release == False and self.j_release == False:
-            # beam element (fixed at i and j nodes)
-            return np.array(
+        # beam element (fixed at i and j nodes)
+        return np.array(
+            [
                 [
-                    [
-                        E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        -E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        12*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        6*E*Izz/l**2,
-                        0,
-                        -12*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        6*E*Izz/l**2
-                    ],
-                    [
-                        0,
-                        0,
-                        12*E*Iyy/l**3,
-                        0,
-                        -6*E*Iyy/l**2,
-                        0,
-                        0,
-                        0,
-                        -12*E*Iyy/l**3,
-                        0,
-                        -6*E*Iyy/l**2,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        G*J/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        -G*J/l,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        -6*E*Iyy/l**2,
-                        0,
-                        4*E*Iyy/l,
-                        0,
-                        0,
-                        0,
-                        6*E*Iyy/l**2,
-                        0,
-                        2*E*Iyy/l,
-                        0
-                    ],
-                    [
-                        0,
-                        6*E*Izz/l**2,
-                        0,
-                        0,
-                        0,
-                        4*E*Izz/l,
-                        0,
-                        -6*E*Izz/l**2,
-                        0,
-                        0,
-                        0,
-                        2*E*Izz/l
-                    ],
-                    [
-                        -E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        -12*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        -6*E*Izz/l**2,
-                        0,
-                        12*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        -6*E*Izz/l**2
-                    ],
-                    [
-                        0,
-                        0,
-                        -12*E*Iyy/l**3,
-                        0,
-                        6*E*Iyy/l**2,
-                        0,
-                        0,
-                        0,
-                        12*E*Iyy/l**3,
-                        0,
-                        6*E*Iyy/l**2,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        -G*J/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        G*J/l,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        -6*E*Iyy/l**2,
-                        0,
-                        2*E*Iyy/l,
-                        0,
-                        0,
-                        0,
-                        6*E*Iyy/l**2,
-                        0,
-                        4*E*Iyy/l,
-                        0
-                    ],
-                    [
-                        0,
-                        6*E*Izz/l**2,
-                        0,
-                        0,
-                        0,
-                        2*E*Izz/l,
-                        0,
-                        -6*E*Izz/l**2,
-                        0,
-                        0,
-                        0,
-                        4*E*Izz/l
-                    ]
-                ], dtype=float
-            )
-        elif self.i_release == True and self.j_release == False:
-            # beam element pinned at node i and fixed at node j
-            return np.array(
+                    E*A/l,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    -E*A/l,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
                 [
-                    [
-                        E*A/l,
-                        0,
-                        0,
-                        0,
-                        -E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        3*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        -3*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        3*E*Izz/l**2
-                    ],
-                    [
-                        0,
-                        0,
-                        3*E*Iyy/l**3,
-                        0,
-                        0,
-                        0,
-                        -3*E*Iyy/l**3,
-                        0,
-                        -3*E*Iyy/l**2,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        G*J/l,
-                        0,
-                        0,
-                        0,
-                        -G*J/l,
-                        0,
-                        0
-                    ],
-                    [
-                        -E*A/l,
-                        0,
-                        0,
-                        0,
-                        E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        -3*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        3*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        -3*E*Izz/l**2
-                    ],
-                    [
-                        0,
-                        0,
-                        -3*E*Iyy/l**3,
-                        0,
-                        0,
-                        0,
-                        3*E*Iyy/l**3,
-                        0,
-                        3*E*Iyy/l**2,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        -G*J/l,
-                        0,
-                        0,
-                        0,
-                        G*J/l,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        -3*E*Iyy/l**2,
-                        0,
-                        0,
-                        0,
-                        3*E*Iyy/l**2,
-                        0,
-                        3*E*Iyy/l,
-                        0
-                    ],
-                    [
-                        0,
-                        3*E*Izz/l**2,
-                        0,
-                        0,
-                        0,
-                        -3*E*Izz/l**2,
-                        0,
-                        0,
-                        0,
-                        3*E*Izz/l
-                    ]
-                ], dtype=float
-            )
-        elif self.i_release == False and self.j_release == True:
-            # beam element fixed at node i and pinned at node j
-            return np.array(
+                    0,
+                    12*E*Izz/l**3,
+                    0,
+                    0,
+                    0,
+                    6*E*Izz/l**2,
+                    0,
+                    -12*E*Izz/l**3,
+                    0,
+                    0,
+                    0,
+                    6*E*Izz/l**2
+                ],
                 [
-                    [
-                        E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        -E*A/l,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        3*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        3*E*Izz/l**2,
-                        0,
-                        -3*E*Izz/l**3,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        3*E*Iyy/l**3,
-                        0,
-                        -3*E*Iyy/l**2,
-                        0,
-                        0,
-                        0,
-                        -3*E*Iyy/l**3,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        G*J/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        -G*J/l
-                    ],
-                    [
-                        0,
-                        0,
-                        -3*E*Iyy/l**2,
-                        0,
-                        3*E*Iyy/l,
-                        0,
-                        0,
-                        0,
-                        3*E*Iyy/l**2,
-                        0
-                    ],
-                    [
-                        0,
-                        3*E*Izz/l**2,
-                        0,
-                        0,
-                        0,
-                        3*E*Izz/l,
-                        0,
-                        -3*E*Izz/l**2,
-                        0,
-                        0
-                    ],
-                    [
-                        -E*A/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        E*A/l,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        -3*E*Izz/l**3,
-                        0,
-                        0,
-                        0,
-                        -3*E*Izz/l**2,
-                        0,
-                        3*E*Izz/l**3,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        -3*E*Iyy/l**3,
-                        0,
-                        3*E*Iyy/l**2,
-                        0,
-                        0,
-                        0,
-                        3*E*Iyy/l**3,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        -G*J/l,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        G*J/l
-                    ]
-                ], dtype=float
-            )
-        else:
-            # bar element (pinned at i and j nodes)
-            # returns stiffness matrix in global coordinates
+                    0,
+                    0,
+                    12*E*Iyy/l**3,
+                    0,
+                    -6*E*Iyy/l**2,
+                    0,
+                    0,
+                    0,
+                    -12*E*Iyy/l**3,
+                    0,
+                    -6*E*Iyy/l**2,
+                    0
+                ],
+                [
+                    0,
+                    0,
+                    0,
+                    G*J/l,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    -G*J/l,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    0,
+                    -6*E*Iyy/l**2,
+                    0,
+                    4*E*Iyy/l,
+                    0,
+                    0,
+                    0,
+                    6*E*Iyy/l**2,
+                    0,
+                    2*E*Iyy/l,
+                    0
+                ],
+                [
+                    0,
+                    6*E*Izz/l**2,
+                    0,
+                    0,
+                    0,
+                    4*E*Izz/l,
+                    0,
+                    -6*E*Izz/l**2,
+                    0,
+                    0,
+                    0,
+                    2*E*Izz/l
+                ],
+                [
+                    -E*A/l,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    E*A/l,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    -12*E*Izz/l**3,
+                    0,
+                    0,
+                    0,
+                    -6*E*Izz/l**2,
+                    0,
+                    12*E*Izz/l**3,
+                    0,
+                    0,
+                    0,
+                    -6*E*Izz/l**2
+                ],
+                [
+                    0,
+                    0,
+                    -12*E*Iyy/l**3,
+                    0,
+                    6*E*Iyy/l**2,
+                    0,
+                    0,
+                    0,
+                    12*E*Iyy/l**3,
+                    0,
+                    6*E*Iyy/l**2,
+                    0
+                ],
+                [
+                    0,
+                    0,
+                    0,
+                    -G*J/l,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    G*J/l,
+                    0,
+                    0
+                ],
+                [
+                    0,
+                    0,
+                    -6*E*Iyy/l**2,
+                    0,
+                    2*E*Iyy/l,
+                    0,
+                    0,
+                    0,
+                    6*E*Iyy/l**2,
+                    0,
+                    4*E*Iyy/l,
+                    0
+                ],
+                [
+                    0,
+                    6*E*Izz/l**2,
+                    0,
+                    0,
+                    0,
+                    2*E*Izz/l,
+                    0,
+                    -6*E*Izz/l**2,
+                    0,
+                    0,
+                    0,
+                    4*E*Izz/l
+                ]
+            ], dtype=float
+        )
 
-            return np.array(
-                [
-                    [
-                        E*A/l,
-                        0,
-                        0,
-                        -E*A/l,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        -E*A/l,
-                        0,
-                        0,
-                        E*A/l,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                    [
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ],
-                ], dtype=float
-            )
+    def pin(self, Kl: np.ndarray) -> np.ndarray:
+        G = np.zeros((12, 12), dtype=float)
+
+        i_release = np.asarray(self.i_release, dtype=float).ravel()
+        j_release = np.asarray(self.j_release, dtype=float).ravel()
+
+        G[np.arange(6), np.arange(6)] = i_release
+        G[np.arange(6, 12), np.arange(6, 12)] = j_release
+
+        Kl = Kl - Kl @ G @ np.linalg.pinv(G @ Kl @ G) @ G @ Kl
+
+        return (Kl)
 
     def build_geometric_stiffness_matrix(self) -> np.ndarray:
         """
@@ -729,23 +413,12 @@ class SubMember():
         :rtype: np.ndarray
         """
         # define section properties as local variables for readability
-        J = self.J
         A = self.A
+        Ip = self.Ixx + self.Iyy
         L = float(self.length*12)
 
         # define first-order results as local variables for readability
-        # Fx1 = self.results['axial'][0] # not used?
         Fx2 = self.results['axial'][1]
-        # Fy1 = self.results['shear'][0] # not used?
-        # Fy2 = self.results['shear'][1] # not used?
-        # Fz1 = self.results['transverse shear'][0] # not used?
-        # Fz2 = self.results['transverse shear'][1] # not used?
-        # Mx1 = self.results['torsional moments'][0] # not used
-        Mx2 = self.results['torsional moments'][1]
-        My1 = self.results['minor axis moments'][0]
-        My2 = self.results['minor axis moments'][1]
-        Mz1 = self.results['major axis moments'][0]
-        Mz2 = self.results['major axis moments'][1]
 
         # beam element (fixed at i and j nodes)
         return np.array(
@@ -768,70 +441,70 @@ class SubMember():
                     0,
                     6*Fx2/(5*L),
                     0,
-                    My1/L,
-                    Mx2/L,
+                    0,
+                    0,
                     Fx2/10,
                     0,
                     -6*Fx2/(5*L),
                     0,
-                    My2/L,
-                    -Mx2/L,
+                    0,
+                    0,
                     Fx2/10
                 ],
                 [
                     0,
                     0,
                     6*Fx2/(5*L),
-                    Mz1/L,
+                    0,
                     -Fx2/10,
-                    Mx2/L,
+                    0,
                     0,
                     0,
                     -6*Fx2/(5*L),
-                    Mz2/L,
+                    0,
                     -Fx2/10,
-                    -Mx2/L
+                    0
                 ],
                 [
                     0,
-                    My1/L,
-                    Mz1/L,
-                    Fx2*J/(A*L),
-                    (-2*Mz1-Mz2)/6,
-                    (2*My1-My2)/6,
                     0,
-                    -My1/L,
-                    -Mz1/L,
-                    -Fx2*J/(A*L),
-                    (-Mz1+Mz2)/6,
-                    (My1+My2)/6
+                    0,
+                    Ip/A,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    -Ip/A,
+                    0,
+                    0
                 ],
                 [
                     0,
-                    Mx2/L,
+                    0,
                     -Fx2/10,
-                    (-2*Mz1-Mz2)/6,
+                    0,
                     2*Fx2*L/15,
                     0,
                     0,
-                    -Mx2/L,
+                    0,
                     Fx2/10,
-                    (-Mz1+Mz2)/6,
+                    0,
                     -Fx2*L/30,
-                    Mx2/2
+                    0
                 ],
                 [
                     0,
                     Fx2/10,
-                    Mx2/L,
-                    (2*My1-My2)/6,
+                    0,
+                    0,
                     0,
                     2*Fx2*L/15,
                     0,
                     -Fx2/10,
-                    -Mx2/L,
-                    (My1+My2)/6,
-                    -Mx2/2,
+                    0,
+                    0,
+                    0,
                     -Fx2*L/30
                 ],
                 [
@@ -852,69 +525,69 @@ class SubMember():
                     0,
                     -6*Fx2/(5*L),
                     0,
-                    -My1/L,
-                    -Mx2/L,
+                    0,
+                    0,
                     -Fx2/10,
                     0,
                     6*Fx2/(5*L),
                     0,
-                    -My2/L,
-                    Mx2/L,
+                    0,
+                    0,
                     -Fx2/10
                 ],
                 [
                     0,
                     0,
                     -6*Fx2/(5*L),
-                    -Mz1/L,
+                    0,
                     Fx2/10,
-                    -Mx2/L,
+                    0,
                     0,
                     0,
                     6*Fx2/(5*L),
-                    -Mz2/L,
+                    0,
                     Fx2/10,
-                    Mx2/L
+                    0
                 ],
                 [
                     0,
-                    My2/L,
-                    Mz2/L,
-                    -Fx2*J/(A*L),
-                    (-Mz1+Mz2)/6,
-                    (My1+My2)/6,
                     0,
-                    -My2/L,
-                    -Mz2/L,
-                    Fx2*J/(A*L),
-                    (Mz1-2*Mz2)/6,
-                    (-My1-2*My2)/6
+                    0,
+                    -Ip/A,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    Ip/A,
+                    0,
+                    0
                 ],
                 [
                     0,
-                    -Mx2/L,
+                    0,
                     -Fx2/10,
-                    (-Mz1+Mz2)/6,
-                    -Fx2*L/30,
-                    -Mx2/2,
                     0,
-                    Mx2/L,
+                    -Fx2*L/30,
+                    0,
+                    0,
+                    0,
                     Fx2/10,
-                    (Mz1-2*Mz2)/6,
+                    0,
                     2*Fx2*L/15,
                     0
                 ],
                 [
                     0,
                     Fx2/10,
-                    -Mx2/L,
-                    (My1+My2)/6,
-                    Mx2/2,
+                    0,
+                    0,
+                    0,
                     -Fx2*L/30,
                     0,
                     -Fx2/10,
-                    Mx2/L,
-                    (-My1-2*My2)/6,
+                    0,
+                    0,
                     0,
                     2*Fx2*L/15
                 ]

@@ -30,7 +30,6 @@ class Solver():
         degrees of freedom tracking, and solution vectors.
         """
         self.nDoF: int = 0
-        self.pinDoF: list[int] = []
         self.restrainedDoF: list[int] = []
         self.Kp: np.ndarray | None = None
         # self.restrainedIndex: list[int] = []
@@ -59,35 +58,6 @@ class Solver():
         # Determine the total degrees of freedom for the model.
         self.nDoF = nodes.count*6
 
-        # Determine the rotational restrained degrees of freedom.
-        for mbr in members.members.values():
-
-            for submbr in mbr.submembers.values():
-
-                if submbr.i_release == False and submbr.j_release == False:
-                    continue
-
-                elif submbr.i_release == True and submbr.j_release == False:
-                    self.pinDoF.append(submbr.node_i.node_ID*6-1)
-                    self.pinDoF.append(submbr.node_i.node_ID*6)
-
-                elif submbr.i_release == False and submbr.j_release == True:
-                    self.pinDoF.append(submbr.node_j.node_ID*6-1)
-                    self.pinDoF.append(submbr.node_j.node_ID*6)
-
-                elif submbr.i_release == True and submbr.j_release == True:
-                    self.pinDoF.append(submbr.node_i.node_ID*6-2)
-                    self.pinDoF.append(submbr.node_i.node_ID*6-1)
-                    self.pinDoF.append(submbr.node_i.node_ID*6)
-                    self.pinDoF.append(submbr.node_j.node_ID*6-2)
-                    self.pinDoF.append(submbr.node_j.node_ID*6-1)
-                    self.pinDoF.append(submbr.node_j.node_ID*6)
-
-        # Remove duplicates from the rotational restrained degrees of freedom.
-        # Duplicates may exist because a user could potentially define
-        # an i and j release on each side of a single node.
-        self.pinDoF = list(dict.fromkeys(self.pinDoF))
-
         # Instantiate the primary stiffness matrix.
         self.Kp = np.zeros([self.nDoF, self.nDoF])
 
@@ -99,11 +69,6 @@ class Solver():
                 for n, DoF in enumerate(node[1].restraint):
                     if DoF == 1:
                         self.restrainedDoF.append(i*6 + n)
-
-        # Check pins to see if attached members contribute to stiffness.
-        # for DoF in [x-1 for x in self.pinDoF]:
-        #    if (np.sum(self.Kp[DoF, :]) < 1*10**-6):
-        #        self.restrainedDoF.append(DoF)
 
         # Remove duplicates from restrained degrees of freedom.
         self.restrainedDoF = list(dict.fromkeys(self.restrainedDoF))
@@ -126,11 +91,8 @@ class Solver():
             for submbr in mbr.submembers.values():
                 node_ID_i = submbr.node_i.node_ID
                 node_ID_j = submbr.node_j.node_ID
-                i_release = submbr.i_release
-                j_release = submbr.j_release
                 KG = submbr.Kg
-                self.AddMemberToKp(node_ID_i, node_ID_j,
-                                   i_release, j_release, KG)
+                self.AddMemberToKp(node_ID_i, node_ID_j, KG)
 
         # Impose the influence of supports to produce the structure stiffness matrix.
         self.Ks = np.delete(self.Kp, self.restrainedDoF, 0)
@@ -159,132 +121,40 @@ class Solver():
         # Use nodal displacements to determine member forces.
         for mbr in members.members.values():
             for submbr in mbr.submembers.values():
-                if submbr.i_release == False and submbr.j_release == False:
-                    ia = submbr.node_i.node_ID*6-6
-                    ib = submbr.node_i.node_ID*6-1
-                    ja = submbr.node_j.node_ID*6-6
-                    jb = submbr.node_j.node_ID*6-1
+                ia = submbr.node_i.node_ID*6-6
+                ib = submbr.node_i.node_ID*6-1
+                ja = submbr.node_j.node_ID*6-6
+                jb = submbr.node_j.node_ID*6-1
 
-                    mbrDisplacements = np.array([
-                        self.global_displacement_vector[ia, 0],
-                        self.global_displacement_vector[ia+1, 0],
-                        self.global_displacement_vector[ia+2, 0],
-                        self.global_displacement_vector[ia+3, 0],
-                        self.global_displacement_vector[ia+4, 0],
-                        self.global_displacement_vector[ib, 0],
-                        self.global_displacement_vector[ja, 0],
-                        self.global_displacement_vector[ja+1, 0],
-                        self.global_displacement_vector[ja+2, 0],
-                        self.global_displacement_vector[ja+3, 0],
-                        self.global_displacement_vector[ja+4, 0],
-                        self.global_displacement_vector[jb, 0]
-                    ]).T
+                mbrDisplacements = np.array([
+                    self.global_displacement_vector[ia, 0],
+                    self.global_displacement_vector[ia+1, 0],
+                    self.global_displacement_vector[ia+2, 0],
+                    self.global_displacement_vector[ia+3, 0],
+                    self.global_displacement_vector[ia+4, 0],
+                    self.global_displacement_vector[ib, 0],
+                    self.global_displacement_vector[ja, 0],
+                    self.global_displacement_vector[ja+1, 0],
+                    self.global_displacement_vector[ja+2, 0],
+                    self.global_displacement_vector[ja+3, 0],
+                    self.global_displacement_vector[ja+4, 0],
+                    self.global_displacement_vector[jb, 0]
+                ]).T
 
-                    submbr.results['displacements'] = np.matmul(
-                        submbr.transformation_matrix, mbrDisplacements)
-                    forces = np.matmul(
-                        submbr.Kl, submbr.results['displacements'])
+                submbr.results['displacements'] = np.matmul(
+                    submbr.transformation_matrix, mbrDisplacements)
+                forces = np.matmul(
+                    submbr.Kl, submbr.results['displacements'])
 
-                    submbr.results['axial'] = [forces[0], forces[6]]
-                    submbr.results['shear'] = [forces[1], forces[7]]
-                    submbr.results['transverse shear'] = [forces[2], forces[8]]
-                    submbr.results['torsional moments'] = [
-                        forces[3], forces[9]]
-                    submbr.results['minor axis moments'] = [
-                        forces[4], forces[10]]
-                    submbr.results['major axis moments'] = [
-                        forces[5], forces[11]]
-
-                elif submbr.i_release == True and submbr.j_release == False:
-                    ia = submbr.node_i.node_ID*6-6
-                    ib = submbr.node_i.node_ID*6-3
-                    ja = submbr.node_j.node_ID*6-6
-                    jb = submbr.node_j.node_ID*6-1
-
-                    mbrDisplacements = np.array([
-                        self.global_displacement_vector[ia, 0],
-                        self.global_displacement_vector[ia+1, 0],
-                        self.global_displacement_vector[ia+2, 0],
-                        self.global_displacement_vector[ib, 0],
-                        self.global_displacement_vector[ja, 0],
-                        self.global_displacement_vector[ja+1, 0],
-                        self.global_displacement_vector[ja+2, 0],
-                        self.global_displacement_vector[ja+3, 0],
-                        self.global_displacement_vector[ja+4, 0],
-                        self.global_displacement_vector[jb, 0]
-                    ]).T
-
-                    submbr.results['displacements'] = np.matmul(
-                        submbr.transformation_matrix, mbrDisplacements)
-                    forces = np.matmul(
-                        submbr.Kl, submbr.results['displacements'])
-
-                    submbr.results['axial'] = [forces[0], forces[4]]
-                    submbr.results['transverse shear'] = [forces[1], forces[5]]
-                    submbr.results['shear'] = [forces[2], forces[6]]
-                    submbr.results['torsional moments'] = [
-                        forces[3], forces[7]]
-                    submbr.results['major axis moments'] = [0, forces[8]]
-                    submbr.results['minor axis moments'] = [0, forces[9]]
-
-                elif submbr.i_release == False and submbr.j_release == True:
-                    ia = submbr.node_i.node_ID*6-6
-                    ib = submbr.node_i.node_ID*6-1
-                    ja = submbr.node_j.node_ID*6-6
-                    jb = submbr.node_j.node_ID*6-3
-
-                    mbrDisplacements = np.array([
-                        self.global_displacement_vector[ia, 0],
-                        self.global_displacement_vector[ia+1, 0],
-                        self.global_displacement_vector[ia+2, 0],
-                        self.global_displacement_vector[ia+3, 0],
-                        self.global_displacement_vector[ia+4, 0],
-                        self.global_displacement_vector[ib, 0],
-                        self.global_displacement_vector[ja, 0],
-                        self.global_displacement_vector[ja+1, 0],
-                        self.global_displacement_vector[ja+2, 0],
-                        self.global_displacement_vector[jb, 0]
-                    ]).T
-
-                    submbr.results['displacements'] = np.matmul(
-                        submbr.transformation_matrix, mbrDisplacements)
-                    forces = np.matmul(
-                        submbr.Kl, submbr.results['displacements'])
-
-                    submbr.results['axial'] = [forces[0], forces[6]]
-                    submbr.results['transverse shear'] = [forces[1], forces[7]]
-                    submbr.results['shear'] = [forces[2], forces[8]]
-                    submbr.results['torsional moments'] = [
-                        forces[3], forces[9]]
-                    submbr.results['major axis moments'] = [forces[4], 0]
-                    submbr.results['minor axis moments'] = [forces[5], 0]
-
-                elif submbr.i_release == True and submbr.j_release == True:
-                    ia = submbr.node_i.node_ID*6-6
-                    ib = submbr.node_i.node_ID*6-3
-                    ja = submbr.node_j.node_ID*6-6
-                    jb = submbr.node_j.node_ID*6-3
-
-                    mbrDisplacements = np.array([
-                        self.global_displacement_vector[ia, 0],
-                        self.global_displacement_vector[ia+1, 0],
-                        self.global_displacement_vector[ib, 0],
-                        self.global_displacement_vector[ja, 0],
-                        self.global_displacement_vector[ja+1, 0],
-                        self.global_displacement_vector[jb, 0]
-                    ]).T
-
-                    submbr.results['displacements'] = np.matmul(
-                        submbr.transformation_matrix, mbrDisplacements)
-                    forces = np.matmul(
-                        submbr.Kl, submbr.results['displacements'])
-
-                    submbr.results['axial'] = [forces[0], forces[3]]
-                    submbr.results['transverse shear'] = [forces[1], forces[4]]
-                    submbr.results['shear'] = [forces[2], forces[5]]
-                    submbr.results['torsional moments'] = [0, 0]
-                    submbr.results['major axis moments'] = [0, 0]
-                    submbr.results['minor axis moments'] = [0, 0]
+                submbr.results['axial'] = [forces[0], forces[6]]
+                submbr.results['shear'] = [forces[1], forces[7]]
+                submbr.results['transverse shear'] = [forces[2], forces[8]]
+                submbr.results['torsional moments'] = [
+                    forces[3], forces[9]]
+                submbr.results['minor axis moments'] = [
+                    forces[4], forces[10]]
+                submbr.results['major axis moments'] = [
+                    forces[5], forces[11]]
 
         # Remove the influence of equivalent nodal actions.
         for mbr in members.members.values():
@@ -386,7 +256,7 @@ class Solver():
                 submbr.node_j.phi_y = self.global_displacement_vector[ja+4][0]
                 submbr.node_j.phi_z = self.global_displacement_vector[jb][0]
 
-    def AddMemberToKp(self, node_ID_i: int, node_ID_j: int, i_release: bool, j_release: bool, KG: np.ndarray) -> None:
+    def AddMemberToKp(self, node_ID_i: int, node_ID_j: int, KG: np.ndarray) -> None:
         """Add member stiffness contributions to the global stiffness matrix.
 
         Extracts the appropriate submatrix from the member's global stiffness matrix
@@ -402,54 +272,15 @@ class Solver():
         """
         assert self.Kp is not None
 
-        if i_release == False and j_release == False:
-            k11 = KG[0:6, 0:6]
-            k12 = KG[0:6, 6:12]
-            k21 = KG[6:12, 0:6]
-            k22 = KG[6:12, 6:12]
+        k11 = KG[0:6, 0:6]
+        k12 = KG[0:6, 6:12]
+        k21 = KG[6:12, 0:6]
+        k22 = KG[6:12, 6:12]
 
-            ia = 6*node_ID_i-6
-            ib = 6*node_ID_i-1
-            ja = 6*node_ID_j-6
-            jb = 6*node_ID_j-1
-
-        elif i_release == True and j_release == False:
-            k11 = KG[0:4, 0:4]
-            k12 = KG[0:4, 4:10]
-            k21 = KG[4:10, 0:4]
-            k22 = KG[4:10, 4:10]
-
-            ia = 6*node_ID_i-6
-            ib = 6*node_ID_i-3
-            ja = 6*node_ID_j-6
-            jb = 6*node_ID_j-1
-
-        elif i_release == False and j_release == True:
-            k11 = KG[0:6, 0:6]
-            k12 = KG[0:6, 6:10]
-            k21 = KG[6:10, 0:6]
-            k22 = KG[6:10, 6:10]
-
-            ia = 6*node_ID_i-6
-            ib = 6*node_ID_i-1
-            ja = 6*node_ID_j-6
-            jb = 6*node_ID_j-3
-
-        elif i_release == True and j_release == True:
-            k11 = KG[0:3, 0:3]
-            k12 = KG[0:3, 3:6]
-            k21 = KG[3:6, 0:3]
-            k22 = KG[3:6, 3:6]
-
-            ia = 6*node_ID_i-6
-            ib = 6*node_ID_i-4
-            ja = 6*node_ID_j-6
-            jb = 6*node_ID_j-4
-
-        else:
-            raise ValueError(
-                "Member boundary conditions must be pinned or fixed"
-            )
+        ia = 6*node_ID_i-6
+        ib = 6*node_ID_i-1
+        ja = 6*node_ID_j-6
+        jb = 6*node_ID_j-1
 
         self.Kp[ia:ib+1, ia:ib+1] = self.Kp[ia:ib+1, ia:ib+1] + k11
         self.Kp[ia:ib+1, ja:jb+1] = self.Kp[ia:ib+1, ja:jb+1] + k12
