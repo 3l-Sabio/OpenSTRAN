@@ -40,7 +40,7 @@ Material Properties
 Boundary Conditions
 ^^^^^^^^^^^^^^^^^^^
 
-* **i_release, j_release**: Boolean flags for pinned connections at ends
+* **i_release, j_release**: list of released degrees of freedom [Ux, Uy, Uz, φx, φy, φz]
 
 Analysis Parameters
 ^^^^^^^^^^^^^^^^^^^
@@ -98,10 +98,10 @@ Boundary Conditions
    M1 = model.members.add_member(N1, N2)
 
    # Pinned-fixed member
-   M2 = model.members.add_member(N1, N2, i_release=True)
+   M2 = model.members.add_member(N1, N2, i_release=[0,0,0,0,1,1])
 
    # Pinned-pinned member
-   M3 = model.members.add_member(N1, N2, i_release=True, j_release=True)
+   M3 = model.members.add_member(N1, N2, i_release=[0,0,0,0,1,1], j_release=[0,0,0,0,1,1])
 
 Member Discretization
 ---------------------
@@ -234,7 +234,7 @@ Properties Access
    # Get all member properties
    props = M1.properties()
    print(f"Member length: {props['length']:.1f} inches")
-   print(f" Young's modulus: {props['E']:.0f} ksi")
+   print(f"Young's modulus: {props['E']:.0f} ksi")
 
 Units
 -----
@@ -248,7 +248,6 @@ Performance Notes
 -----------------
 
 * Higher mesh values increase accuracy but slow analysis
-* Continuous bracing is most conservative for buckling
 * Submembers are created automatically during initialization
 
 See Also

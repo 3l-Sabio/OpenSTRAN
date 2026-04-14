@@ -124,11 +124,11 @@ Members can have released connections at either end:
 
 .. code-block:: python
 
-   # Pinned connection at start node
-   M1 = model.members.add_member(N1, N2, i_release=True)
+   # Pinned connection at start node (member moments released about the minor and major axes)
+   M1 = model.members.add_member(N1, N2, i_release=[0,0,0,0,1,1])
 
-   # Pinned connection at both ends
-   M2 = model.members.add_member(N2, N3, i_release=True, j_release=True)
+   # Pinned connection at both ends (member moments released about the minor and major axes)
+   M2 = model.members.add_member(N2, N3, i_release=[0,0,0,0,1,1], j_release=[0,0,0,0,1,1])
 
 Custom Cross-Sections
 ^^^^^^^^^^^^^^^^^^^^^

@@ -88,21 +88,33 @@ Custom Material Properties
 Boundary Conditions
 -------------------
 
-Members can have different connection types at each end:
+Members can have different end releases each end to create hinges that idealize pinned behavior and/or slip connections.
+Boundary conditions at each member end consist of a list of six degrees of freedom: [Ux, Uy, Uz, φx, φy, φz]. 
+By default, the all member end releases are restrained: [0, 0, 0, 0, 0, 0]. Each degree of freedom may be released by replacing the corresponding degree of freedom with a 1:
 
 .. code-block:: python
 
    # Fixed-fixed (default)
    M1 = members.add_member(N1, N2)
 
-   # Pinned-fixed
-   M2 = members.add_member(N1, N2, i_release=True)
+   # Pinned-fixed (release moments about major and minor axes)
+   M2 = members.add_member(N1, N2, i_release=[0,0,0,0,1,1])
 
-   # Fixed-pinned
-   M3 = members.add_member(N1, N2, j_release=True)
+   # Fixed-pinned (release moments about major and minor axes)
+   M3 = members.add_member(N1, N2, j_release=[0,0,0,0,1,1])
 
-   # Pinned-pinned
-   M4 = members.add_member(N1, N2, i_release=True, j_release=True)
+   # Pinned-pinned (release moments about major and minor axes)
+   M4 = members.add_member(N1, N2, i_release=[0,0,0,0,1,1], j_release=[0,0,0,0,1,1])
+
+   # Pinned-fixed (release moments about minor axis)
+   M5 = members.add_member(N1, N2, i_release=[0,0,0,0,1,0])
+
+   # Pinned-fixed (release moments about major axis)
+   M6 = members.add_member(N1, N2, i_release=[0,0,0,0,0,1])
+
+   # torsion released-fixed
+   M7 = members.add_member(N1, N2, i_release=[0,0,0,1,0,0])
+   
 
 Member Discretization
 ---------------------
