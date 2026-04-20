@@ -240,7 +240,7 @@ class Model():
         """
         print('Nodal Reactions')
         for node in self.nodes.nodes.values():
-            if node.mesh_node != True:
+            if node.mesh_node is not True:
                 print(f'\tNode {node.node_ID}:')
                 print(f'\t\tRx = {node.Rx:.2f} kips')
                 print(f'\t\tRy = {node.Ry:.2f} kips')
