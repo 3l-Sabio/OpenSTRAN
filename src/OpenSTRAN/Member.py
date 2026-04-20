@@ -77,6 +77,7 @@ class Member():
             self.add_mesh(self.nodes, self.node_i,
                           self.node_j, self.mesh, self.length)
         ):
+            print(node.coordinates.vector)
             if self.mesh == 1:
                 i = self.node_i
                 j = self.node_j
@@ -188,6 +189,13 @@ class Member():
         Returns:
             list[Node]: List of intermediate mesh nodes along the member.
         """
+        # create a list of non mesh nodes
+        k_nodes = [n for n in nodes.nodes.values() if n.mesh_node is False]
+        # remove i and j nodes from the list
+        k_nodes = [k for k in k_nodes if k not in [node_i, node_j]]
+        # reduce the list to nodes that fall on the member
+        k_nodes = [k for k in k_nodes if self.check_node(node_i, node_j, k)]
+
         # Instantiate an array to hold the mesh nodes
         mesh_nodes: list[Node] = []
         # Calculate the x, y and z vector components of the member
@@ -208,8 +216,53 @@ class Member():
             z = node_i.coordinates.z + scalar*z_unit
             # Add the mesh coordinates as a node to the model
             mesh_nodes.append(nodes.add_node(x, y, z, mesh_node=True))
-        # Return a list of the mesh nodes
+
+        # Return a list of the mesh nodes ordered along the member axis.
+        mesh_nodes += k_nodes
+
+        if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
+            def key(x): return x.coordinates.x
+            reverse = dx < 0
+        elif abs(dy) >= abs(dz):
+            def key(x): return x.coordinates.y
+            reverse = dy < 0
+        else:
+            def key(x): return x.coordinates.z
+            reverse = dz < 0
+
+        mesh_nodes.sort(key=key, reverse=reverse)
+
+        # remove duplicates (if any) based on node coordinate vectors
+        seen = set()
+        unique_mesh_nodes = []
+        for node in mesh_nodes:
+            coord = tuple(np.atleast_1d(node.coordinates.vector).ravel())
+            if coord not in seen:
+                seen.add(coord)
+                unique_mesh_nodes.append(node)
+        mesh_nodes = unique_mesh_nodes
+
+        # recalculate the number of mesh entries
+        self.mesh = len(mesh_nodes)
+
         return (mesh_nodes)
+
+    def check_node(self, node_i: Node, node_j: Node, node_k: Node) -> bool:
+        """Check if a node k is on the vector ij
+
+        Args:
+            nodes (Nodes): Collection of nodes in the model.
+            node_i (Node): Start node of the submember.
+            node_j (Node): End node of the submember.
+
+        """
+        i = node_i.coordinates.vector
+        j = node_j.coordinates.vector
+        k = node_k.coordinates.vector
+        if (np.linalg.cross(j, k-i) == np.zeros((1, 3))).all():
+            return True
+        else:
+            return False
 
     def add_submember(
         self,
