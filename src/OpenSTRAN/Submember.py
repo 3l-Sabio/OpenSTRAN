@@ -54,6 +54,8 @@ class SubMember():
     transformation_matrix: np.ndarray = field(init=False)
     Kl: np.ndarray = field(init=False)
     Kg: np.ndarray = field(init=False)
+    w_major: list[float] = field(init=False)
+    w_minor: list[float] = field(init=False)
 
     def properties(self) -> dict[str, Any]:
         """Return all submember properties as a dictionary.
@@ -89,6 +91,12 @@ class SubMember():
             'minor axis moments': [],
             'major axis moments': []
         }
+        # Local distributed-load intensities [i-end, j-end] in the member's
+        # major (local y) and minor (local z) bending planes. Populated when
+        # distributed loads are applied; used to evaluate exact internal forces
+        # along the span.
+        self.w_major = [0.0, 0.0]
+        self.w_minor = [0.0, 0.0]
         # calculate the member length based on the node coordinates
         self.length = self.calculate_length(self.node_i, self.node_j)
 
@@ -118,6 +126,139 @@ class SubMember():
         # calculate the member global stiffness matrix
         self.Kg = self.transformation_matrix.T.dot(
             self.Kl).dot(self.transformation_matrix)
+
+    def moment_major(self, x: float) -> float:
+        """Internal major-axis bending moment at local position x.
+
+        Evaluates the exact closed-form moment by superposing the i-end member
+        forces with the span load.
+
+        Args:
+            x (float): Distance from node i along the submember, in inches.
+
+        Returns:
+            float: Bending moment in kip-inches.
+        """
+        l = self.length*12
+        m1 = self.results['major axis moments'][0]
+        v1 = self.results['shear'][0]
+        w1, w2 = self.w_major[0]/12, self.w_major[1]/12
+        return m1 - v1*x - w1*x**2/2 - (w2 - w1)*x**3/(6*l)
+
+    def shear_major(self, x: float) -> float:
+        """Internal major-axis shear force at local position x.
+
+        Args:
+            x (float): Distance from node i along the submember, in inches.
+
+        Returns:
+            float: Shear force in kips.
+        """
+        l = self.length*12
+        v1 = self.results['shear'][0]
+        w1, w2 = self.w_major[0]/12, self.w_major[1]/12
+        return v1 + w1*x + (w2 - w1)*x**2/(2*l)
+
+    def moment_minor(self, x: float) -> float:
+        """Internal minor-axis bending moment at local position x.
+
+        Args:
+            x (float): Distance from node i along the submember, in inches.
+
+        Returns:
+            float: Bending moment in kip-inches.
+        """
+        l = self.length*12
+        m1 = self.results['minor axis moments'][0]
+        v1 = self.results['transverse shear'][0]
+        w1, w2 = self.w_minor[0]/12, self.w_minor[1]/12
+        return m1 - v1*x - w1*x**2/2 - (w2 - w1)*x**3/(6*l)
+
+    def shear_minor(self, x: float) -> float:
+        """Internal minor-axis transverse shear at local position x.
+
+        Args:
+            x (float): Distance from node i along the submember, in inches.
+
+        Returns:
+            float: Shear force in kips.
+        """
+        l = self.length*12
+        v1 = self.results['transverse shear'][0]
+        w1, w2 = self.w_minor[0]/12, self.w_minor[1]/12
+        return v1 + w1*x + (w2 - w1)*x**2/(2*l)
+
+    def force_extrema(self) -> dict[str, tuple[float, float]]:
+        """Return the (max, min) internal force in each component over the span.
+
+        Moment and shear extrema are found analytically, moment peaks where the
+        shear is zero, shear peaks where the distributed load is zero. Axial
+        force and torsion are constant along the submember, so their extrema are
+        the end values.
+
+        Returns:
+            dict[str, tuple[float, float]]: Mapping of result key to (max, min).
+        """
+        l = self.length*12
+
+        def roots(a: float, b: float, c: float) -> list[float]:
+            # Real roots of a*x^2 + b*x + c = 0 falling strictly within (0, L).
+            candidates: list[float] = []
+            if abs(a) < 1e-12:
+                if abs(b) > 1e-12:
+                    candidates.append(-c/b)
+            else:
+                disc = b*b - 4*a*c
+                if disc >= 0:
+                    sq = disc**0.5
+                    candidates.append((-b + sq)/(2*a))
+                    candidates.append((-b - sq)/(2*a))
+            return [x for x in candidates if 0 < x < l]
+
+        wy1, wy2 = self.w_major[0]/12, self.w_major[1]/12
+        wz1, wz2 = self.w_minor[0]/12, self.w_minor[1]/12
+        vy1 = self.results['shear'][0]
+        vz1 = self.results['transverse shear'][0]
+
+        # Moment extrema: the ends plus any point where the shear is zero.
+        xs_Mz = [0.0, l] + roots((wy2 - wy1)/(2*l), wy1, vy1)
+        xs_My = [0.0, l] + roots((wz2 - wz1)/(2*l), wz1, vz1)
+
+        # Shear extrema: the ends plus the point where the load intensity is zero.
+        xs_Vy = [0.0, l]
+        if abs(wy2 - wy1) > 1e-12:
+            xv = -wy1*l/(wy2 - wy1)
+            if 0 < xv < l:
+                xs_Vy.append(xv)
+        xs_Vz = [0.0, l]
+        if abs(wz2 - wz1) > 1e-12:
+            xv = -wz1*l/(wz2 - wz1)
+            if 0 < xv < l:
+                xs_Vz.append(xv)
+
+        def ext(func, xs: list[float]) -> tuple[float, float]:
+            vals = [float(func(x)) for x in xs]
+            return (max(vals), min(vals))
+
+        # Axial and torsion are not considered to vary along the submember;
+        # therefore, the extrema are considered the end values.
+        axial_vals = [
+            float(self.results['axial'][0]),
+            float(-self.results['axial'][1])
+        ]
+        torque_vals = [
+            float(self.results['torsional moments'][0]),
+            float(-self.results['torsional moments'][1])
+        ]
+
+        return {
+            'axial': (max(axial_vals), min(axial_vals)),
+            'torsional moments': (max(torque_vals), min(torque_vals)),
+            'shear': ext(self.shear_major, xs_Vy),
+            'transverse shear': ext(self.shear_minor, xs_Vz),
+            'major axis moments': ext(self.moment_major, xs_Mz),
+            'minor axis moments': ext(self.moment_minor, xs_My),
+        }
 
     def calculate_length(self, node_i: Node, node_j: Node) -> float:
         """Compute Euclidean length between two nodes.
