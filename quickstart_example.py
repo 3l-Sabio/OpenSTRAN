@@ -23,8 +23,11 @@ s = Shape("W12X14")
 
 M1 = model.members.add_member(N1, N2, shape=s)
 
-# add a load of -1 kips in the global Y direction along M1's span.
-M1.add_distributed_load(-1, -1, 'Y', 0, 100)
+# Add a -10 kip point load 35% along the member.
+M1.add_point_load(-10, 'Y', 35)
+
+# Add a -1 kip/ft distributed load over the middle half of the span.
+M1.add_distributed_load(-1, -1, 'Y', 25, 75)
 
 # solve the model.
 model.solve()
@@ -36,4 +39,4 @@ model.reactions()
 model.max_deflection()
 
 # print the maximum deflection to the terminal.
-print(model.Uy_max)
+print(f"max deflection (Uy): {model.Uy_max}")

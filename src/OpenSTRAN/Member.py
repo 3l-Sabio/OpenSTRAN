@@ -2,6 +2,7 @@ from .Nodes import Nodes
 from .Node import Node
 from .Submember import SubMember
 from .Database.Shape import Shape
+from .Coordinates import Coordinate
 import numpy as np
 from scipy.linalg import inv
 from math import sqrt
@@ -61,87 +62,186 @@ class Member():
     count: int = 0
     submembers: dict[int, SubMember] = field(
         default_factory=dict[int, SubMember])
+    point_loads: list = field(default_factory=list, init=False)
+    distributed_loads: list = field(default_factory=list, init=False)
+    _prepared: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
-        """Initialize the member after dataclass instantiation.
-
-        Calculates the member length and discretizes the member into submembers
-        based on the specified mesh parameter. Creates connectivity between
-        submembers using intermediate mesh nodes.
+        """Initialize the member after dataclass instantiation to calculate
+        the member's length based on the i (start) and j (end) nodes.
         """
         # Calculate the member length based on the node coordinates
         self.length = self.calculate_length(self.node_i, self.node_j)
 
-        j: Node = self.node_i
-        for i, node in enumerate(
-            self.add_mesh(self.nodes, self.node_i,
-                          self.node_j, self.mesh, self.length)
-        ):
-            print(node.coordinates.vector)
-            if self.mesh == 1:
-                i = self.node_i
-                j = self.node_j
-                self.add_submember(
-                    i,
-                    j,
-                    self.i_release,
-                    self.j_release,
-                    self.E,
-                    self.Ixx,
-                    self.Iyy,
-                    self.A,
-                    self.G,
-                    self.J)
+    def prepare(self) -> None:
+        """Generate the member mesh and apply deferred loads.
 
-            elif i+1 == 1:
-                i = self.node_i
-                j = node
+        Called by :meth:`OpenSTRAN.Model.Model.solve` prior to assembling the
+        global stiffness matrix. Meshing is deferred until this point so that
+        nodes created by loads (point load locations and distributed load
+        extents) are included when the member is discretized into submembers.
+        """
+        if self._prepared:
+            return
+        self.generate_mesh()
+        for load in self.distributed_loads:
+            self._apply_distributed_load(*load)
+        self._prepared = True
 
-                self.add_submember(
-                    i,
-                    j,
-                    self.i_release,
-                    [0, 0, 0, 0, 0, 0],
-                    self.E,
-                    self.Ixx,
-                    self.Iyy,
-                    self.A,
-                    self.G,
-                    self.J)
+    def generate_mesh(self) -> None:
+        """Discretize the member into submembers.
 
-            elif i+1 < self.mesh:
-                i = j
-                j = node
+        Builds the uniform subdivision requested by ``mesh`` and merges in every
+        other node lying on the member axis. These include user-defined nodes
+        and the nodes created at point-load locations and distributed-load extents.
+        Consecutive nodes along the member are connected by submembers, with the
+        member end releases applied only to the first and last submembers.
+        """
+        # Reset any previously generated submembers so meshing is repeatable.
+        self.submembers: dict[int, SubMember] = {}
+        self.count: int = 0
 
-                self.add_submember(
-                    i,
-                    j,
-                    [0, 0, 0, 0, 0, 0],
-                    [0, 0, 0, 0, 0, 0],
-                    self.E,
-                    self.Ixx,
-                    self.Iyy,
-                    self.A,
-                    self.G,
-                    self.J
-                )
+        # Create the uniform subdivision nodes along the member span.
+        i = self.node_i.coordinates
+        j = self.node_j.coordinates
+        dx = j.x - i.x
+        dy = j.y - i.y
+        dz = j.z - i.z
+        for k in range(1, self.mesh):
+            frac = k/self.mesh
+            self.nodes.add_node(
+                i.x + frac*dx, i.y + frac*dy, i.z + frac*dz, mesh_node=True)
 
-            else:
-                i = j
-                j = self.node_j
+        # Collect and order every node lying on the member axis.
+        mesh_nodes = self._axis_nodes()
 
-                self.add_submember(
-                    i,
-                    j,
-                    [0, 0, 0, 0, 0, 0],
-                    self.j_release,
-                    self.E,
-                    self.Ixx,
-                    self.Iyy,
-                    self.A,
-                    self.G,
-                    self.J
-                )
+        # Connect consecutive nodes, applying the member end releases only to
+        # the first and last submembers.
+        n_segments = len(mesh_nodes) - 1
+        for idx in range(n_segments):
+            i_release = self.i_release if idx == 0 else [0, 0, 0, 0, 0, 0]
+            j_release = self.j_release if idx == n_segments - 1 \
+                else [0, 0, 0, 0, 0, 0]
+            self.add_submember(
+                mesh_nodes[idx],
+                mesh_nodes[idx+1],
+                i_release,
+                j_release,
+                self.E,
+                self.Ixx,
+                self.Iyy,
+                self.A,
+                self.G,
+                self.J
+            )
+
+    def _axis_nodes(self) -> list[Node]:
+        """Return the nodes lying on the member axis, ordered without duplicates.
+
+        Returns:
+            list[Node]: Nodes on the member (including its end nodes) ordered
+            from ``node_i`` to ``node_j`` along the dominant global axis, with
+            coincident nodes removed.
+        """
+        nodes_on_axis = [
+            n for n in self.nodes.nodes.values() if self.on_segment(n)]
+
+        # Sort along the dominant global axis so submembers connect in order.
+        dx = self.node_j.coordinates.x - self.node_i.coordinates.x
+        dy = self.node_j.coordinates.y - self.node_i.coordinates.y
+        dz = self.node_j.coordinates.z - self.node_i.coordinates.z
+        if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
+            def key(n): return n.coordinates.x
+            reverse = dx < 0
+        elif abs(dy) >= abs(dz):
+            def key(n): return n.coordinates.y
+            reverse = dy < 0
+        else:
+            def key(n): return n.coordinates.z
+            reverse = dz < 0
+        nodes_on_axis.sort(key=key, reverse=reverse)
+
+        # Remove coincident nodes (e.g. a load landing on a uniform mesh node).
+        seen: set = set()
+        unique: list[Node] = []
+        for node in nodes_on_axis:
+            coord = tuple(np.round(node.coordinates.vector, 6))
+            if coord not in seen:
+                seen.add(coord)
+                unique.append(node)
+        return unique
+
+    def on_segment(self, node_k: Node) -> bool:
+        """Check whether a node lies on the segment between the member end nodes.
+
+        Args:
+            node_k (Node): The node to test.
+
+        Returns:
+            bool: True if ``node_k`` is collinear with and between ``node_i`` and
+            ``node_j`` (inclusive), False otherwise.
+        """
+        i = self.node_i.coordinates.vector
+        j = self.node_j.coordinates.vector
+        k = node_k.coordinates.vector
+        v = j - i
+        w = k - i
+        L2 = float(np.dot(v, v))
+        if L2 == 0:
+            return False
+        # Collinearity: the cross product of the member vector and (k - i) is ~0.
+        if not np.allclose(np.cross(v, w), 0.0, atol=1e-6):
+            return False
+        # Parametric position along the member must fall within [0, 1].
+        t = float(np.dot(w, v)/L2)
+        return -1e-9 <= t <= 1 + 1e-9
+
+    def _local_axes(self) -> np.ndarray:
+        """Return the 3x3 rotation matrix mapping member-local axes to global.
+
+        The columns are the member's local x, y and z unit vectors expressed in
+        the global reference frame, derived with the same Gram-Schmidt approach
+        used by :class:`OpenSTRAN.Submember.SubMember`.
+
+        Returns:
+            np.ndarray: A 3x3 rotation matrix.
+        """
+        i = self.node_i.coordinates
+        j = self.node_j.coordinates
+        dx = j.x - i.x
+        dz = j.z - i.z
+        # Offset to define the local x-y plane; vertical members are special-cased.
+        if abs(dx) < 0.001 and abs(dz) < 0.001:
+            i_offset = np.array([i.x-1, i.y, i.z])
+            j_offset = np.array([j.x-1, j.y, j.z])
+        else:
+            i_offset = np.array([i.x, i.y+1, i.z])
+            j_offset = np.array([j.x, j.y+1, j.z])
+
+        local_x_unit = (j.vector - i.vector)/self.length
+        node_k = i_offset + 0.5*(j_offset - i_offset)
+        vector_in_plane = node_k - i.vector
+        local_y_vector = vector_in_plane - \
+            np.dot(vector_in_plane, local_x_unit)*local_x_unit
+        local_y_unit = local_y_vector/np.linalg.norm(local_y_vector)
+        local_z_unit = np.cross(local_x_unit, local_y_unit)
+        return np.array([local_x_unit, local_y_unit, local_z_unit]).T
+
+    def _node_at_fraction(self, frac: float) -> Node:
+        """Create (or reuse) a node at a fractional position along the member.
+
+        Args:
+            frac (float): Position along the span as a fraction from 0.0 to 1.0.
+
+        Returns:
+            Node: The node at the requested position.
+        """
+        i = self.node_i.coordinates
+        dx = self.node_j.coordinates.x - i.x
+        dy = self.node_j.coordinates.y - i.y
+        dz = self.node_j.coordinates.z - i.z
+        return self.nodes.add_node(
+            i.x + frac*dx, i.y + frac*dy, i.z + frac*dz, mesh_node=True)
 
     def calculate_length(self, node_i: Node, node_j: Node) -> float:
         """Calculate the length of the member using the Euclidean distance formula.
@@ -171,98 +271,6 @@ class Member():
             dict[str, Any]: Dictionary containing all member attributes and their values.
         """
         return asdict(self)
-
-    def add_mesh(self, nodes: Nodes, node_i: Node, node_j: Node, mesh: int, l: float) -> list[Node]:
-        """Create intermediate mesh nodes along the member span.
-
-        Generates evenly spaced nodes along the member length based on the mesh
-        parameter. These nodes are used as intermediary connection points for
-        submembers in the discretization process.
-
-        Args:
-            nodes (Nodes): Collection of nodes in the model.
-            node_i (Node): Start node of the member.
-            node_j (Node): End node of the member.
-            mesh (int): Number of equal segments to divide the member into.
-            l (float): Total length of the member in inches.
-
-        Returns:
-            list[Node]: List of intermediate mesh nodes along the member.
-        """
-        # create a list of non mesh nodes
-        k_nodes = [n for n in nodes.nodes.values() if n.mesh_node is False]
-        # remove i and j nodes from the list
-        k_nodes = [k for k in k_nodes if k not in [node_i, node_j]]
-        # reduce the list to nodes that fall on the member
-        k_nodes = [k for k in k_nodes if self.check_node(node_i, node_j, k)]
-
-        # Instantiate an array to hold the mesh nodes
-        mesh_nodes: list[Node] = []
-        # Calculate the x, y and z vector components of the member
-        dx = node_j.coordinates.x - node_i.coordinates.x
-        dy = node_j.coordinates.y - node_i.coordinates.y
-        dz = node_j.coordinates.z - node_i.coordinates.z
-        # Calculate the member unit vectors
-        x_unit = dx/l
-        y_unit = dy/l
-        z_unit = dz/l
-        # Add the mesh to the model
-        for i in range(mesh):
-            # Calculate the scalar
-            scalar = l/mesh*(i+1)
-            # Calculate nodal coordinates of mesh point
-            x = node_i.coordinates.x + scalar*x_unit
-            y = node_i.coordinates.y + scalar*y_unit
-            z = node_i.coordinates.z + scalar*z_unit
-            # Add the mesh coordinates as a node to the model
-            mesh_nodes.append(nodes.add_node(x, y, z, mesh_node=True))
-
-        # Return a list of the mesh nodes ordered along the member axis.
-        mesh_nodes += k_nodes
-
-        if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
-            def key(x): return x.coordinates.x
-            reverse = dx < 0
-        elif abs(dy) >= abs(dz):
-            def key(x): return x.coordinates.y
-            reverse = dy < 0
-        else:
-            def key(x): return x.coordinates.z
-            reverse = dz < 0
-
-        mesh_nodes.sort(key=key, reverse=reverse)
-
-        # remove duplicates (if any) based on node coordinate vectors
-        seen = set()
-        unique_mesh_nodes = []
-        for node in mesh_nodes:
-            coord = tuple(np.atleast_1d(node.coordinates.vector).ravel())
-            if coord not in seen:
-                seen.add(coord)
-                unique_mesh_nodes.append(node)
-        mesh_nodes = unique_mesh_nodes
-
-        # recalculate the number of mesh entries
-        self.mesh = len(mesh_nodes)
-
-        return (mesh_nodes)
-
-    def check_node(self, node_i: Node, node_j: Node, node_k: Node) -> bool:
-        """Check if a node k is on the vector ij
-
-        Args:
-            nodes (Nodes): Collection of nodes in the model.
-            node_i (Node): Start node of the submember.
-            node_j (Node): End node of the submember.
-
-        """
-        i = node_i.coordinates.vector
-        j = node_j.coordinates.vector
-        k = node_k.coordinates.vector
-        if (np.linalg.cross(j, k-i) == np.zeros((1, 3))).all():
-            return True
-        else:
-            return False
 
     def add_submember(
         self,
@@ -463,12 +471,11 @@ class Member():
         return self.Cb
 
     def add_point_load(self, mag: float, direction: str, location: float) -> None:
-        """Apply a concentrated point load to the member.
+        """Apply a concentrated point load to the member as a nodal load.
 
-        Applies a point load at a specified location along the member span. The
-        load can be specified in either global (X, Y, Z) or local (x, y, z)
-        coordinates. The method calculates equivalent nodal actions and distributes
-        loads to the appropriate nodes and submembers.
+        Ensures a node exists at the load location, creating one if the load
+        does not land on an existing node, and applies the load directly to
+        that node.
 
         Args:
             mag (float): Magnitude of the load in kips.
@@ -479,170 +486,82 @@ class Member():
         Raises:
             ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
-        # Convert location from percentage to absolute distance
-        location = self.length*(location/100)
+        # Create (or reuse) a node at the load location along the member.
+        node = self._node_at_fraction(location/100)
 
-        # Instantiate a variable measuring distance along the member
-        l1 = 0
+        # Resolve the load into global X, Y, Z components.
+        if direction in ('X', 'Y', 'Z'):
+            fg = np.array([
+                mag if direction == 'X' else 0.0,
+                mag if direction == 'Y' else 0.0,
+                mag if direction == 'Z' else 0.0,
+            ])
+        elif direction in ('x', 'y', 'z'):
+            local = np.array([
+                mag if direction == 'x' else 0.0,
+                mag if direction == 'y' else 0.0,
+                mag if direction == 'z' else 0.0,
+            ])
+            fg = self._local_axes() @ local
+        else:
+            raise ValueError(
+                "Load direction must be global ('X', 'Y', 'Z') or local ('x', 'y', 'z')."
+            )
 
-        # Iterate through the submembers
-        for _, submbr in self.submembers.items():
+        # Apply the load directly to the node as a nodal load.
+        node.Fx += fg[0]
+        node.Fy += fg[1]
+        node.Fz += fg[2]
 
-            l2 = l1 + submbr.length
+        # Mirror the load into the node's equivalent-action accumulators so the
+        # solver recovers the correct reaction if the load lands on a support.
+        node.eFx += fg[0]
+        node.eFy += fg[1]
+        node.eFz += fg[2]
 
-            # Check if the load lands on the current submember
-            if l1 <= location <= l2:
-
-                # Extract rotation matrix for the current submember
-                transformation_matrix = submbr.rotation_matrix[0:3, 0:3]
-
-                # Initialize a global force vector
-                if direction == 'X':
-                    fg = np.array([mag, 0, 0])
-
-                elif direction == 'x':
-                    fg = np.array(
-                        np.matmul(transformation_matrix, np.array([mag, 0, 0])))
-
-                elif direction == 'Y':
-                    fg = np.array([0, mag, 0])
-
-                elif direction == 'y':
-                    fg = np.array(
-                        np.matmul(transformation_matrix, np.array([0, mag, 0])))
-
-                elif direction == 'Z':
-                    fg = np.array([0, 0, mag])
-
-                elif direction == 'z':
-                    fg = np.array(
-                        np.matmul(transformation_matrix, np.array([0, 0, mag])))
-                else:
-                    raise ValueError(
-                        "Load direction must be global ('X', 'Y', 'Z') or local ('x', 'y', 'z')."
-                    )
-
-                # Check if the load lands on node i of the submember
-                if l1 < location < l1:
-                    # Add the X component of the load
-                    submbr.node_i.add_load(mag=fg[0], lType='v', direction='X')
-
-                    # Add the Y component of the load
-                    submbr.node_i.add_load(mag=fg[1], lType='v', direction='Y')
-
-                    # Add the Z component of the load
-                    submbr.node_i.add_load(mag=fg[2], lType='v', direction='Z')
-
-                # Check if the load lands on node j of the submember
-                elif l2 < location < l2:
-                    # Add the X component of the load
-                    submbr.node_j.add_load(mag=fg[0], lType='v', direction='X')
-
-                    # Add the Y component of the load
-                    submbr.node_j.add_load(mag=fg[1], lType='v', direction='Y')
-
-                    # Add the Z component of the load
-                    submbr.node_j.add_load(mag=fg[2], lType='v', direction='Z')
-
-                # Load lands somewhere between the nodes of the submember
-                else:
-                    #         P
-                    # o-------|-----o
-                    # |<- a ->|<-b->|
-                    b = l2 - location
-                    a = submbr.length - b
-
-                    # Transform the global force vector to local coordinates
-                    FL = np.matmul(transformation_matrix, fg)
-
-                    # Extract local axial force
-                    axial = FL[0]
-
-                    # Extract local shearing force
-                    v = FL[1]
-
-                    # Extract local transverse force
-                    t = FL[2]
-
-                    # Calculate equivalent nodal actions
-                    # Instantiate an array to hold equivalent nodal actions
-                    f_local = np.zeros([12, 1])
-
-                    # Forces at node i
-                    f_local[0, 0] = axial*b/(submbr.length)
-                    f_local[1, 0] = v*b**2*(3*a+b)/submbr.length**3
-                    f_local[2, 0] = t*b**2*(3*a+b)/submbr.length**3
-                    f_local[4, 0] = -t*a*b**2/submbr.length**2
-                    f_local[5, 0] = -v*a*b**2/submbr.length**2
-
-                    # Forces at node j
-                    f_local[6, 0] = axial*a/(submbr.length)
-                    f_local[7, 0] = v*a**2*(a+3*b)/submbr.length**3
-                    f_local[8, 0] = t*a**2*(a+3*b)/submbr.length**3
-                    f_local[10, 0] = t*a**2*b/submbr.length**2
-                    f_local[11, 0] = v*a**2*b/submbr.length**2
-
-                    # Transform the local force vector to the global reference plane
-                    transformation_matrix = np.asarray(submbr.rotation_matrix)
-                    f_global: np.ndarray = inv(transformation_matrix) @ f_local
-
-                    # Add the equivalent nodal forces and moments to each node
-                    submbr.node_i.Fx += f_global[0, 0]
-                    submbr.node_i.Fy += f_global[1, 0]
-                    submbr.node_i.Fz += f_global[2, 0]
-                    submbr.node_i.Mx += f_global[3, 0]
-                    submbr.node_i.My += f_global[4, 0]
-                    submbr.node_i.Mz += f_global[5, 0]
-                    submbr.node_j.Fx += f_global[6, 0]
-                    submbr.node_j.Fy += f_global[7, 0]
-                    submbr.node_j.Fz += f_global[8, 0]
-                    submbr.node_j.Mx += f_global[9, 0]
-                    submbr.node_j.My += f_global[10, 0]
-                    submbr.node_j.Mz += f_global[11, 0]
-
-                    submbr.node_i.eFx += f_global[0, 0]
-                    submbr.node_i.eFy += f_global[1, 0]
-                    submbr.node_i.eFz += f_global[2, 0]
-                    submbr.node_i.eMx += f_global[3, 0]
-                    submbr.node_i.eMy += f_global[4, 0]
-                    submbr.node_i.eMz += f_global[5, 0]
-                    submbr.node_j.eFx += f_global[6, 0]
-                    submbr.node_j.eFy += f_global[7, 0]
-                    submbr.node_j.eFz += f_global[8, 0]
-                    submbr.node_j.eMx += f_global[9, 0]
-                    submbr.node_j.eMy += f_global[10, 0]
-                    submbr.node_j.eMz += f_global[11, 0]
-
-                    submbr.ENAs['axial'][0] += f_local[0, 0]
-                    submbr.ENAs['axial'][1] += f_local[6, 0]
-                    submbr.ENAs['shear'][0] += f_local[1, 0]
-                    submbr.ENAs['shear'][1] += f_local[7, 0]
-                    submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-                    submbr.ENAs['transverse shear'][1] += f_local[8, 0]
-                    submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
-                    submbr.ENAs['minor axis moments'][1] += f_local[10, 0]
-                    submbr.ENAs['major axis moments'][0] += f_local[5, 0]
-                    submbr.ENAs['major axis moments'][1] += f_local[11, 0]
-
-                break
-
-            l1 = l2
+        # Record the load for reference.
+        self.point_loads.append((mag, direction, location, node))
 
     def add_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
         """Apply a trapezoidal distributed load along the member.
 
-        Applies a distributed load with linearly varying magnitude over a specified
-        portion of the member span. Handles loading that spans across multiple
-        submembers by calculating equivalent nodal actions for each affected segment.
+        Creates nodes at the start and end of the loaded region (if they do not
+        already exist) so the load aligns with element boundaries, then defers
+        the load until the member is meshed at solve time. The load remains a
+        member (distributed) load applied via equivalent nodal actions in
+        :meth:`_apply_distributed_load`.
 
         Args:
-            Mag1 (float): Starting magnitude of the distributed load in kips.
-            Mag2 (float): Ending magnitude of the distributed load in kips.
+            Mag1 (float): Start magnitude of the distributed load in kips.
+            Mag2 (float): End magnitude of the distributed load in kips.
             direction (str): Load direction - global ('X', 'Y', 'Z') or local
                 ('x', 'y', 'z').
-            loc1 (float): Starting location of load along member span as percentage
+            loc1 (float): Start location of load along member span as percentage
                 (0-100%).
-            loc2 (float): Ending location of load along member span as percentage
+            loc2 (float): End location of load along member span as percentage
+                (0-100%).
+        """
+        # Ensure nodes exist at the start and end of the loaded region.
+        self._node_at_fraction(loc1/100)
+        self._node_at_fraction(loc2/100)
+
+        # Defer application until the member has been meshed at solve time.
+        self.distributed_loads.append((Mag1, Mag2, direction, loc1, loc2))
+
+    def _apply_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
+        """Distribute a trapezoidal load onto the member's submembers.
+
+        Computes equivalent nodal actions for each affected submember. Called by
+        :meth:`prepare` after the member has been meshed.
+
+        Args:
+            Mag1 (float): Start magnitude of the distributed load in kips.
+            Mag2 (float): End magnitude of the distributed load in kips.
+            direction (str): Load direction - global ('X', 'Y', 'Z') or local
+                ('x', 'y', 'z').
+            loc1 (float): Start location of load along member span as percentage
+                (0-100%).
+            loc2 (float): End location of load along member span as percentage
                 (0-100%).
 
         Raises:
@@ -833,7 +752,73 @@ class Member():
             submbr.ENAs['major axis moments'][0] += f_local[5, 0]
             submbr.ENAs['major axis moments'][1] += f_local[11, 0]
 
+            # Record the local distributed-load intensities at the submember
+            # ends so exact internal forces can be evaluated along the span.
+            # Each loaded submember is fully covered (nodes are placed at the
+            # load extents), so v1/t1 act at node i and v2/t2 act at node j.
+            submbr.w_major[0] += v1
+            submbr.w_major[1] += v2
+            submbr.w_minor[0] += t1
+            submbr.w_minor[1] += t2
+
             l1 = l2
+
+    def _locate(self, location: float) -> tuple[SubMember, float]:
+        """Map a span location to the parent submember and a local position.
+
+        Args:
+            location (float): Position along the member span as a percentage
+                (0-100%).
+
+        Returns:
+            tuple[SubMember, float]: The submember containing the location and the
+            distance (in inches) from that submember's i-node.
+        """
+        target = self.length*(location/100)*12  # inches from node i
+        run = 0.0
+        submbr = None
+        for submbr in self.submembers.values():
+            sub_length = submbr.length*12
+            if run - 1e-6 <= target <= run + sub_length + 1e-6:
+                return submbr, min(max(target - run, 0.0), sub_length)
+            run += sub_length
+        # Location is beyond the last submember; clamp to its far end.
+        return submbr, submbr.length*12
+
+    def moment(self, location: float, axis: str = 'major') -> float:
+        """Internal bending moment at an arbitrary location along the member.
+
+        Calculates exact moments between mesh nodes by evaluating the parent
+        submember's closed-form moment expression.
+
+        Args:
+            location (float): Position along the span as a percentage (0-100%).
+            axis (str, optional): 'major' (about local z) or 'minor' (about local
+                y). Defaults to 'major'.
+
+        Returns:
+            float: Bending moment in kip-inches.
+        """
+        submbr, x = self._locate(location)
+        if axis == 'minor':
+            return submbr.moment_minor(x)
+        return submbr.moment_major(x)
+
+    def shear(self, location: float, axis: str = 'major') -> float:
+        """Internal shear force at an arbitrary location along the member.
+
+        Args:
+            location (float): Position along the span as a percentage (0-100%).
+            axis (str, optional): 'major' (local y) or 'minor' (local z).
+                Defaults to 'major'.
+
+        Returns:
+            float: Shear force in kips.
+        """
+        submbr, x = self._locate(location)
+        if axis == 'minor':
+            return submbr.shear_minor(x)
+        return submbr.shear_major(x)
 
     def second_order(self) -> None:
         """

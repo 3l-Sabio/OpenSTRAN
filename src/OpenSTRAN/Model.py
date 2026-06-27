@@ -48,6 +48,12 @@ class Model():
         * Calculation of nodal reactions at restrained DOFs
         * Determination of member forces and local extrema
         """
+        # mesh each member and apply its deferred loads. Meshing is
+        # deferred to this point so that nodes created by loads are included
+        # in the member mesh.
+        for member in self.members.members.values():
+            member.prepare()
+
         self.solver.solve(self.nodes, self.members)
         self.maxReactions()
         self.maxMbrForces()
@@ -151,6 +157,32 @@ class Model():
         self.Myy_max = abs(max(Myy, key=lambda x: abs(x)))
         self.Myy_maxima = self.localMaxima(Myy)
         self.Myy_minima = self.localMinima(Myy)
+
+        # Override the peak magnitudes with exact closed-form extrema so that
+        # peaks occurring between mesh nodes (e.g. under distributed loads) are
+        # captured rather than only the values sampled at the nodes.
+        axial_ext: list[float] = []
+        torque_ext: list[float] = []
+        Vy_ext: list[float] = []
+        Vz_ext: list[float] = []
+        Mzz_ext: list[float] = []
+        Myy_ext: list[float] = []
+        for mbr in self.members.members.values():
+            for submbr in mbr.submembers.values():
+                extrema = submbr.force_extrema()
+                axial_ext += list(extrema['axial'])
+                torque_ext += list(extrema['torsional moments'])
+                Vy_ext += list(extrema['shear'])
+                Vz_ext += list(extrema['transverse shear'])
+                Mzz_ext += list(extrema['major axis moments'])
+                Myy_ext += list(extrema['minor axis moments'])
+
+        self.axial_max = abs(max(axial_ext, key=lambda x: abs(x)))
+        self.torque_max = abs(max(torque_ext, key=lambda x: abs(x)))
+        self.Vy_max = abs(max(Vy_ext, key=lambda x: abs(x)))
+        self.Vz_max = abs(max(Vz_ext, key=lambda x: abs(x)))
+        self.Mzz_max = abs(max(Mzz_ext, key=lambda x: abs(x)))
+        self.Myy_max = abs(max(Myy_ext, key=lambda x: abs(x)))
 
     def localMaxima(self, forces: list[float]) -> list[bool]:
         """Identify local maxima in a force distribution.
