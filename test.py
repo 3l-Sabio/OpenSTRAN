@@ -1,4 +1,4 @@
-from OpenSTRAN.Model import Model
+from OpenSTRAN.model import Model
 import time
 
 # instantiate an empty model
