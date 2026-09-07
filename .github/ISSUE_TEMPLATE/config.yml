@@ -1,0 +1,3 @@
+# Keep the freeform "Open a blank issue" option available for anything the two
+# forms above do not fit, such as a question or a documentation correction.
+blank_issues_enabled: true

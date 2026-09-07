@@ -16,15 +16,17 @@ Open-Source Structural Analysis with Python
 $ pip install OpenSTRAN
 ```
 
+## Requirements
+
+* Python 3.14 or higher
+
 ## Dependencies
 
 OpenSTRAN depends on the following packages:
+* <a href="https://scipy.org/">scipy</a> - used for linear algebra routines in the solver.
 * <a href="https://numpy.org/">numpy</a> - used for vector and matrix mathematical operations.
 
-It is recommended to install these dependencies which may be done using the following command.
-```
-pip install numpy
-```
+Both of these dependencies are automatically installed by default when you run `pip install OpenSTRAN`.
 
 ## Documentation
 
@@ -66,6 +68,8 @@ If you would like to contribute to the development of OpenSTRAN, you are encoura
 * Increase readability of source code through refactoring and commenting.
 
 All contributions are welcome and done on a voluntary basis.
+
+See <a href="CONTRIBUTING.md">CONTRIBUTING.md</a> for how to set up a development environment, where dependencies are declared, how to run the test suite, and the branch naming, commit message and pull request conventions this project follows.
 
 ## Quickstart Example
 
