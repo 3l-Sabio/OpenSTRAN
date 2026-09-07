@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a new capability or an improvement to an existing one.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: >
+        Describe the problem you are trying to solve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: >
+        What you would like OpenSTRAN to do.
+      placeholder: |
+        Members should accept a uniform temperature change, so that thermal effects
+        can be combined with the existing load cases:
+
+        ```python
+        M1.add_thermal_load(delta_T=50, alpha=6.5e-6)
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: >
+        Textbook sections, design specifications, or worked examples that define the
+        expected behavior. These make the requested feature(s) easier to develop and validate.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contributing
+    attributes:
+      label: Would you like to implement this?
+      description: There is no obligation either way, and saying no does not reduce the value of the request.
+      options:
+        - "Yes, I would like to open a pull request"
+        - "Yes, but I would need guidance to get started"
+        - "No, I am suggesting it for someone else to pick up"
+    validations:
+      required: true

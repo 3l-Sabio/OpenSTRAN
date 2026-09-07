@@ -1,2 +1,8 @@
-numpy==2.4.4
-scipy==1.17.1
+# Runtime dependencies for OpenSTRAN (numpy, scipy).
+#
+# This installs OpenSTRAN and its dependencies
+#
+#   pip install -r requirements.txt
+#
+# Versions are pinned in pyproject.toml under [project.dependencies]. To change one, edit pyproject.toml.
+.

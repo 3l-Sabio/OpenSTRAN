@@ -1,0 +1,30 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for more information:
+# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+# https://containers.dev/guide/dependabot
+
+version: 2
+
+# target-branch sends Dependabot's pull requests to development rather than the
+# default branch, matching the contribution flow in CONTRIBUTING.md. It also
+# determines which branch the manifests are read from.
+updates:
+ - package-ecosystem: "devcontainers"
+   directory: "/"
+   schedule:
+     interval: weekly
+   target-branch: "development"
+
+ # Track pyproject.toml and the requirements*.txt files
+ - package-ecosystem: "pip"
+   directory: "/"
+   schedule:
+     interval: weekly
+   target-branch: "development"
+
+ - package-ecosystem: "github-actions"
+   directory: "/"
+   schedule:
+     interval: weekly
+   target-branch: "development"

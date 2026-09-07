@@ -1,0 +1,13 @@
+# Development environment: everything in requirements.txt, plus the test suite.
+#
+# OpenSTRAN is installed in editable mode, so edits under src/ take effect
+# immediately without reinstalling.
+#
+#   pip install -r requirements-dev.txt
+#
+# Version constraints live in pyproject.toml: runtime deps under
+# [project.dependencies], test tooling under [project.optional-dependencies].dev.
+#
+# Do NOT add `-r requirements.txt` here -- `-e ".[dev]"` already pulls the runtime
+# dependencies in, and chaining would install the project twice.
+-e ".[dev]"
