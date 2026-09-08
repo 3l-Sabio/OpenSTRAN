@@ -1,0 +1,71 @@
+name: Bug report
+description: Report incorrect results, an error, unexpected behavior, or anything else.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OpenSTRAN is a FEA solver; therefore, good actionable reports are those that document errors, incorret results, or anything else with data that allows for recreation of the encountered issue.
+        Accordingly, it is recommended that you attempt to provide the inputs required to reproduce the error, the expected result (if known), and actual result. Do your best to complete the form below
+        to the extent possible.
+          
+  - type: input
+    id: version
+    attributes:
+      label: OpenSTRAN version
+      description: "Output of: pip show OpenSTRAN"
+      placeholder: "0.0.5"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: "Output of: python --version"
+      placeholder: "3.14.7"
+    validations:
+      required: true
+
+  - type: textarea
+    id: model
+    attributes:
+      label: Minimal model
+      description: >
+        The smallest complete script that reproduces the problem. It must run as written.
+        Adapt quickstart_example.py if that is a convenient starting point.
+      render: python
+      placeholder: |
+        from OpenSTRAN.Model import Model
+
+        model = Model()
+        N1 = model.nodes.add_node(0, 0, 0)
+        N2 = model.nodes.add_node(10, 0, 0)
+        ...
+        model.solve()
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What you expected, and where it comes from — a hand calculation, a textbook solution, or another analysis package.
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: What OpenSTRAN produced. Paste the full traceback if an exception was raised.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Additional context that may be relevant.
+    validations:
+      required: false
