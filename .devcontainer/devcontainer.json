@@ -5,9 +5,10 @@
 		"ghcr.io/devcontainers/features/python:1": {
 			"installTools": true,
 			"version": "3.14"
-		}
+		},
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+		"ghcr.io/devcontainers/features/node:2": {}
 	},
-	"postCreateCommand": "bash .devcontainer/post-create.sh",
 	"customizations": {
 		"vscode": {
 			"extensions": [
