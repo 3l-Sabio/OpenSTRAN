@@ -585,7 +585,7 @@ class Member():
             # Extract rotation matrix for the current submember
             transformation_matrix = submbr.rotation_matrix[0:3, 0:3]
 
-            if l2 < loc1 or l1 > loc2:
+            if l2 <= loc1 + 1e-9 or l1 >= loc2 - 1e-9:
                 # The load does not land on the current submember
                 # Continue to the next iteration
                 l1 = l2
