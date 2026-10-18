@@ -585,7 +585,7 @@ class Member():
             # Extract rotation matrix for the current submember
             transformation_matrix = submbr.rotation_matrix[0:3, 0:3]
 
-            if l2 < loc1 or l1 > loc2:
+            if l2 <= loc1 + 1e-9 or l1 >= loc2 - 1e-9:
                 # The load does not land on the current submember
                 # Continue to the next iteration
                 l1 = l2
@@ -691,7 +691,7 @@ class Member():
             f_local[7, 0] = (lw*(s1*vm+s2*vd))/(20*l**3)  # normal shear
             f_local[8, 0] = (lw*(s1*tm+s2*td)) / \
                 (20*l**3)  # transverse shear
-            f_local[10, 0] = -(lw*(s3*tm+s4*td)) / \
+            f_local[10, 0] = (lw*(s3*tm+s4*td)) / \
                 (120*l**2)  # minor axis moment
             f_local[11, 0] = -(lw*(s3*vm+s4*vd)) / \
                 (120*l**2)  # major axis moment
@@ -705,10 +705,14 @@ class Member():
             f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
             f_local[1, 0] = lw*vm-vj  # normal shear
             f_local[2, 0] = lw*tm-tj  # transverse shear
-            f_local[4, 0] = mj+tj*l-a*lw*tm - \
+            f_local[4, 0] = tj*l-mj-a*lw*tm - \
                 (lw**2*(2*t2+t1))/6  # minor axis moment
-            f_local[5, 0] = Mj+vj*l-a*lw*vm - \
-                (lw**2*(2*v2+v1))/6  # major axis moment
+            f_local[5, 0] = a*lw*vm+(lw**2*(2*v2+v1))/6 - \
+                Mj-vj*l  # major axis moment
+
+            # Lengths above are in feet; convert the moments from kip-ft to
+            # kip-in to match the stiffness matrix.
+            f_local[[4, 5, 10, 11], 0] *= 12
 
             # Transform the local force vector to the global reference plane
             transformation_matrix = np.asarray(submbr.rotation_matrix)
