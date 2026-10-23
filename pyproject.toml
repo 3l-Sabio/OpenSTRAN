@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling >= 1.26"]
+requires = ["hatchling >= 1.26", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "OpenSTRAN"
-version = "0.0.5"
+dynamic = ["version"]
 authors = [
   { name="Xavier Montoya, PE", email="openstruct@os.mozmail.com" },
 ]
@@ -38,6 +38,9 @@ docs = [
 Homepage = "https://github.com/3l-Sabio/OpenSTRAN"
 Documentation = "https://openSTRAN.readthedocs.io"
 Issues = "https://github.com/3l-Sabio/OpenSTRAN/issues"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib"]
