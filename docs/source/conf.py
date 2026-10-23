@@ -5,6 +5,7 @@
 
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, version
 
 # Add the parent directory to sys.path so Sphinx can find the OpenSTRAN module
 sys.path.insert(0, os.path.abspath('../../src'))
@@ -15,7 +16,10 @@ sys.path.insert(0, os.path.abspath('../../src'))
 project = 'OpenSTRAN'
 copyright = '2023, Xavier Montoya, PE'
 author = 'Xavier Montoya, PE'
-release = '0.0.5'
+try:
+    release = version('OpenSTRAN')
+except PackageNotFoundError:
+    release = '0.0.0+unknown'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
