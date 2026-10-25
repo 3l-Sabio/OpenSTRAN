@@ -172,7 +172,7 @@ class SubMember():
         m1 = self.results['minor axis moments'][0]
         v1 = self.results['transverse shear'][0]
         w1, w2 = self.w_minor[0]/12, self.w_minor[1]/12
-        return m1 - v1*x - w1*x**2/2 - (w2 - w1)*x**3/(6*l)
+        return m1 + v1*x + w1*x**2/2 + (w2 - w1)*x**3/(6*l)
 
     def shear_minor(self, x: float) -> float:
         """Internal minor-axis transverse shear at local position x.
