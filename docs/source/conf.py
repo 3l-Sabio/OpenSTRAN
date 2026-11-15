@@ -5,7 +5,8 @@
 
 import os
 import sys
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 
 # Add the parent directory to sys.path so Sphinx can find the OpenSTRAN module
 sys.path.insert(0, os.path.abspath('../../src'))
@@ -16,10 +17,14 @@ sys.path.insert(0, os.path.abspath('../../src'))
 project = 'OpenSTRAN'
 copyright = '2023, Xavier Montoya, PE'
 author = 'Xavier Montoya, PE'
+# The metadata function is imported under another name because Sphinx reads
+# any name called `version` in this file as its own `version` setting.
 try:
-    release = version('OpenSTRAN')
+    release = package_version('OpenSTRAN')
 except PackageNotFoundError:
     release = '0.0.0+unknown'
+# Sphinx's short version is the major.minor part of the release.
+version = '.'.join(release.split('.')[:2])
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

@@ -1,7 +1,7 @@
 import pytest
 
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 
 @pytest.mark.parametrize("L", [87., 120., 207.96], scope="class")

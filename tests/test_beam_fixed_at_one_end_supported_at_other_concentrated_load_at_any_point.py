@@ -2,8 +2,8 @@ import pytest
 
 from math import sqrt
 
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 
 def reactions(P: float, l: float, x: float) -> tuple[float, float, float, float]:

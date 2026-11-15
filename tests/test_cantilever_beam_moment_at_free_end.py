@@ -1,7 +1,7 @@
 import pytest
 
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 
 # A cantilever with a concentrated moment M applied to the node at its free

@@ -1,7 +1,7 @@
 import pytest
 
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 
 # A portal frame with pinned bases in the global X-Y plane. The beam carries a

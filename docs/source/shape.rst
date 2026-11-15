@@ -12,7 +12,7 @@ Usage
 
    .. code-block:: python
 
-      from OpenSTRAN.Database.Shape import Shape
+      from OpenSTRAN import Shape
 
 2. Create an object with a section designation:
 

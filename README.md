@@ -92,8 +92,8 @@ Below is a simple example that will help you get started using OpenSTRAN. The ex
 
 
 ```python
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 # instantiate an empty model
 model = Model()
