@@ -103,6 +103,3 @@ Module contents
 ---------------
 
 .. automodule:: OpenSTRAN
-   :members:
-   :show-inheritance:
-   :undoc-members:

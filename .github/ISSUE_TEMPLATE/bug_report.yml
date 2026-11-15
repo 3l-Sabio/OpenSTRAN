@@ -36,7 +36,7 @@ body:
         Adapt quickstart_example.py if that is a convenient starting point.
       render: python
       placeholder: |
-        from OpenSTRAN.Model import Model
+        from OpenSTRAN import Model
 
         model = Model()
         N1 = model.nodes.add_node(0, 0, 0)

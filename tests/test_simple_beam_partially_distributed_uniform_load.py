@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 LOAD_LENGTHS = [10, 20, 30, 50, 100]   # load length, % of span
 STEP = 1                                # how far the load moves each step, % of span

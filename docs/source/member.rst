@@ -65,8 +65,8 @@ Members are typically created through the :class:`Members` collection:
 
 .. code-block:: python
 
-   from OpenSTRAN.Model import Model
-   from OpenSTRAN.Database.Shape import Shape
+   from OpenSTRAN import Model
+   from OpenSTRAN import Shape
 
    model = Model()
 
@@ -180,7 +180,7 @@ Using the Shape Database
 
 .. code-block:: python
 
-   from OpenSTRAN.Database.Shape import Shape
+   from OpenSTRAN import Shape
 
    # Common steel sections
    w14x30 = Shape("W14X30")

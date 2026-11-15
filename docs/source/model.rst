@@ -31,7 +31,7 @@ Creating a Model
 
 .. code-block:: python
 
-   from OpenSTRAN.Model import Model
+   from OpenSTRAN import Model
 
    # Create a 3D model
    model = Model()
@@ -64,7 +64,7 @@ Adding Members
 
 .. code-block:: python
 
-   from OpenSTRAN.Database.Shape import Shape
+   from OpenSTRAN import Shape
 
    # Define material properties
    E = 29000  # ksi - Young's modulus for steel

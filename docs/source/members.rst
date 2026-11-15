@@ -31,7 +31,7 @@ The Members collection is automatically created when instantiating a :class:`Mod
 
 .. code-block:: python
 
-   from OpenSTRAN.Model import Model
+   from OpenSTRAN import Model
 
    model = Model()
    members = model.members  # Members collection
@@ -58,7 +58,7 @@ Using Cross-Section Database
 
 .. code-block:: python
 
-   from OpenSTRAN.Database.Shape import Shape
+   from OpenSTRAN import Shape
 
    # Use standard steel sections
    w_section = Shape("W12X14")    # Wide flange
@@ -205,7 +205,7 @@ The Members class integrates with the cross-section database:
 
 .. code-block:: python
 
-   from OpenSTRAN.Database.Shape import Shape
+   from OpenSTRAN import Shape
 
    # Available shapes
    shapes = ["W8X10", "W10X12", "W12X14", "W14X16", "TUB1X1X0.125", "TUB2X2X0.25"]

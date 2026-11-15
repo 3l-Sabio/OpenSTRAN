@@ -2,8 +2,8 @@ import pytest
 
 from math import sqrt
 
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 
 # A continuous beam of two equal spans, uniformly loaded on both spans, built

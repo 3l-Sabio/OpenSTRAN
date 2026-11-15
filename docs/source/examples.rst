@@ -10,8 +10,8 @@ The following example demonstrates how to create a simple beam model, apply load
 
 .. code-block:: python
 
-   from OpenSTRAN.Model import Model
-   from OpenSTRAN.Database.Shape import Shape
+   from OpenSTRAN import Model
+   from OpenSTRAN import Shape
 
    # instantiate an empty model
    model = Model()
@@ -60,8 +60,8 @@ The following example demonstrates how to create a hung beam by releasing moment
 
 .. code-block:: python
 
-   from OpenSTRAN.Model import Model
-   from OpenSTRAN.Database.Shape import Shape
+   from OpenSTRAN import Model
+   from OpenSTRAN import Shape
 
    # instantiate an empty model
    model = Model()

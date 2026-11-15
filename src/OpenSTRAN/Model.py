@@ -15,7 +15,7 @@ class Model():
 
     Parameters:
         plane (str | None): Constrains the model to a two-dimensional plane. Valid
-            values are 'xy', 'yz', or 'xz'. If None, the model is fully
+            values are 'xy', 'yz', or 'zx'. If None, the model is fully
             three-dimensional.
         nodes (Nodes): Collection of nodes in the structure.
         members (Members): Collection of members (elements) in the structure.
@@ -33,7 +33,7 @@ class Model():
 
         Args:
             plane (str | None, optional): Plane constraint for 2D models ('xy', 'yz',
-                or 'xz'). Defaults to None for 3D models.
+                or 'zx'). Defaults to None for 3D models.
         """
         self.nodes = Nodes(plane)
         self.members = Members(self.nodes)

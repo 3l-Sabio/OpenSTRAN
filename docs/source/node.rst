@@ -56,7 +56,7 @@ Nodes are typically created through the :class:`Nodes` collection:
 
 .. code-block:: python
 
-   from OpenSTRAN.Model import Model
+   from OpenSTRAN import Model
 
    model = Model()
 

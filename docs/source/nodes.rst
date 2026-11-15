@@ -32,7 +32,7 @@ The Nodes collection is automatically created when instantiating a :class:`Model
 
 .. code-block:: python
 
-   from OpenSTRAN.Model import Model
+   from OpenSTRAN import Model
 
    # 3D model
    model = Model()

@@ -2,8 +2,8 @@ import pytest
 
 from math import hypot
 
-from OpenSTRAN.Model import Model
-from OpenSTRAN.Database.Shape import Shape
+from OpenSTRAN import Model
+from OpenSTRAN import Shape
 
 
 # A sloped simple beam (a rafter) in the global X-Y plane, pinned at the low
