@@ -4,7 +4,6 @@ from .Submember import SubMember
 from .Database.Shape import Shape
 from .Coordinates import Coordinate
 import numpy as np
-from scipy.linalg import inv
 from math import sqrt
 
 from typing import Any
@@ -513,8 +512,9 @@ class Member():
         node.Fy += fg[1]
         node.Fz += fg[2]
 
-        # Mirror the load into the node's equivalent-action accumulators so the
-        # solver recovers the correct reaction if the load lands on a support.
+        # Mirror the load into the node's equivalent-action accumulators, which
+        # record the loads a node receives from its members. The solver takes
+        # reactions from Fx, Fy and Fz above.
         node.eFx += fg[0]
         node.eFy += fg[1]
         node.eFz += fg[2]
@@ -582,8 +582,8 @@ class Member():
             # Calculate the end location of the current submember
             l2 = l1+submbr.length
 
-            # Extract rotation matrix for the current submember
-            transformation_matrix = submbr.rotation_matrix[0:3, 0:3]
+            # Rotation matrix for the current submember.
+            local_to_global = submbr.rotation_matrix[0:3, 0:3]
 
             if l2 <= loc1 + 1e-9 or l1 >= loc2 - 1e-9:
                 # The load does not land on the current submember
@@ -634,32 +634,32 @@ class Member():
                 fg2 = np.array([w2, 0, 0])
 
             elif direction == 'x':
-                fg1 = np.matmul(transformation_matrix, np.array([w1, 0, 0]))
-                fg2 = np.matmul(transformation_matrix, np.array([w2, 0, 0]))
+                fg1 = np.matmul(local_to_global, np.array([w1, 0, 0]))
+                fg2 = np.matmul(local_to_global, np.array([w2, 0, 0]))
 
             elif direction == 'Y':
                 fg1 = np.array([0, w1, 0])
                 fg2 = np.array([0, w2, 0])
 
             elif direction == 'y':
-                fg1 = np.matmul(transformation_matrix, np.array([0, w1, 0]))
-                fg2 = np.matmul(transformation_matrix, np.array([0, w2, 0]))
+                fg1 = np.matmul(local_to_global, np.array([0, w1, 0]))
+                fg2 = np.matmul(local_to_global, np.array([0, w2, 0]))
 
             elif direction == 'Z':
                 fg1 = np.array([0, 0, w1])
                 fg2 = np.array([0, 0, w2])
 
             elif direction == 'z':
-                fg1 = np.matmul(transformation_matrix, np.array([0, 0, w1]))
-                fg2 = np.matmul(transformation_matrix, np.array([0, 0, w2]))
+                fg1 = np.matmul(local_to_global, np.array([0, 0, w1]))
+                fg2 = np.matmul(local_to_global, np.array([0, 0, w2]))
             else:
                 raise ValueError(
                     "Force vector must be bound to a global or local axis."
                 )
 
             # Transform the global force vector to local coordinates
-            FL1 = np.matmul(transformation_matrix, fg1)
-            FL2 = np.matmul(transformation_matrix, fg2)
+            FL1 = np.matmul(local_to_global.T, fg1)
+            FL2 = np.matmul(local_to_global.T, fg2)
 
             # Extract local axial force
             a1 = FL1[0]
@@ -686,8 +686,14 @@ class Member():
             s3 = 120*a*b*(a+lw)+10*lw*(6*a**2+4*l*lw-3*lw**2)
             s4 = 10*l*lw**2-10*lw*a*(l-3*b)-9*lw**3
 
+            # Axial load: the resultant acts at the centroid of the loaded
+            # length and is shared between the nodes in proportion to its
+            # distance from each.
+            axial_total = (a1+a2)*lw/2
+            axial_j = (a*axial_total+lw**2*(a1+2*a2)/6)/l
+
             # forces at node j
-            f_local[6, 0] = (a1+a2)*submbr.length/2  # axial
+            f_local[6, 0] = axial_j  # axial
             f_local[7, 0] = (lw*(s1*vm+s2*vd))/(20*l**3)  # normal shear
             f_local[8, 0] = (lw*(s1*tm+s2*td)) / \
                 (20*l**3)  # transverse shear
@@ -702,7 +708,7 @@ class Member():
             mj = f_local[10, 0]  # Minor axis moment at node j
             Mj = f_local[11, 0]  # Major axis moment at node j
 
-            f_local[0, 0] = (a1+a2)*submbr.length/2  # axial
+            f_local[0, 0] = axial_total-axial_j  # axial
             f_local[1, 0] = lw*vm-vj  # normal shear
             f_local[2, 0] = lw*tm-tj  # transverse shear
             f_local[4, 0] = tj*l-mj-a*lw*tm - \
@@ -714,9 +720,27 @@ class Member():
             # kip-in to match the stiffness matrix.
             f_local[[4, 5, 10, 11], 0] *= 12
 
+            # The actions above assume both ends of the submember are fixed.
+            # Condense the force vector the same way SubMember.pin condenses
+            # the stiffness matrix, using the stiffness of the submember before
+            # its releases were applied.
+            releases = np.array(
+                [*submbr.i_release, *submbr.j_release], dtype=float)
+            if releases.any():
+                K = submbr.build_stiffness_matrix(
+                    submbr.E,
+                    submbr.Ixx,
+                    submbr.Iyy,
+                    submbr.A,
+                    submbr.G,
+                    submbr.J,
+                    submbr.length
+                )
+                R = np.diag(releases)
+                f_local -= K @ R @ np.linalg.pinv(R @ K @ R) @ R @ f_local
+
             # Transform the local force vector to the global reference plane
-            transformation_matrix = np.asarray(submbr.rotation_matrix)
-            f_global: np.ndarray = inv(transformation_matrix) @ f_local
+            f_global: np.ndarray = submbr.rotation_matrix @ f_local
 
             # Add the equivalent nodal forces and moments to each node
             submbr.node_i.Fx += f_global[0, 0]
