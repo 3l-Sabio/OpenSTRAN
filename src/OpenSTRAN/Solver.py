@@ -113,9 +113,12 @@ class Solver():
                 self.global_displacement_vector[i] = U[index]
                 index += 1
 
-        # Back-substitute displacements to calculate reaction forces.
+        # Back-substitute displacements to calculate reaction forces. The
+        # stiffness forces at a node balance the loads applied to it plus its
+        # reaction, so the applied loads (nodal loads and equivalent nodal
+        # actions alike) are removed once per node.
         self.global_force_vector = np.matmul(
-            self.Kp, self.global_displacement_vector)
+            self.Kp, self.global_displacement_vector) - self.force_vector
         assert self.global_force_vector is not None
 
         # Use nodal displacements to determine member forces.
@@ -156,7 +159,8 @@ class Solver():
                 submbr.results['major axis moments'] = [
                     forces[5], forces[11]]
 
-        # Remove the influence of equivalent nodal actions.
+        # Remove the influence of equivalent nodal actions from member forces
+        # and store the nodal results.
         for mbr in members.members.values():
             for n, submbr in mbr.submembers.items():
 
@@ -165,34 +169,6 @@ class Solver():
                 ib = submbr.node_i.node_ID*6-1
                 ja = submbr.node_j.node_ID*6-6
                 jb = submbr.node_j.node_ID*6-1
-
-                # Remove influence of equivalent nodal actions from the global force vector.
-
-                self.global_force_vector[ia] = self.global_force_vector[ia] - \
-                    submbr.node_i.eFx
-                self.global_force_vector[ia +
-                                         1] = self.global_force_vector[ia+1] - submbr.node_i.eFy
-                self.global_force_vector[ia +
-                                         2] = self.global_force_vector[ia+2] - submbr.node_i.eFz
-                self.global_force_vector[ia +
-                                         3] = self.global_force_vector[ia+3] - submbr.node_i.eMx
-                self.global_force_vector[ia +
-                                         4] = self.global_force_vector[ia+4] - submbr.node_i.eMy
-                self.global_force_vector[ib] = self.global_force_vector[ib] - \
-                    submbr.node_i.eMz
-
-                self.global_force_vector[ja] = self.global_force_vector[ja] - \
-                    submbr.node_j.eFx
-                self.global_force_vector[ja +
-                                         1] = self.global_force_vector[ja+1] - submbr.node_j.eFy
-                self.global_force_vector[ja +
-                                         2] = self.global_force_vector[ja+2] - submbr.node_j.eFz
-                self.global_force_vector[ja +
-                                         3] = self.global_force_vector[ja+3] - submbr.node_j.eMx
-                self.global_force_vector[ja +
-                                         4] = self.global_force_vector[ja+4] - submbr.node_j.eMy
-                self.global_force_vector[jb] = self.global_force_vector[jb] - \
-                    submbr.node_j.eMz
 
                 # Remove influence of equivalent nodal actions from member forces.
 
@@ -234,7 +210,7 @@ class Solver():
                     submbr.node_i.Rmx = self.global_force_vector[ia+3][0]
                     submbr.node_i.Rmy = self.global_force_vector[ia+4][0]
                     submbr.node_i.Rmz = self.global_force_vector[ib][0]
-                elif submbr.node_j.mesh_node is not True:
+                if submbr.node_j.mesh_node is not True:
                     submbr.node_j.Rx = self.global_force_vector[ja][0]
                     submbr.node_j.Ry = self.global_force_vector[ja+1][0]
                     submbr.node_j.Rz = self.global_force_vector[ja+2][0]
