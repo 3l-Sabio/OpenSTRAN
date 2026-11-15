@@ -11,9 +11,9 @@ class Coordinate():
     """A class representing a 3D coordinate in space.
 
     Parameters:
-        x (float): The x-coordinate in feet.
-        y (float): The y-coordinate in feet.
-        z (float): The z-coordinate in feet.
+        x (float): The x-coordinate in inches.
+        y (float): The y-coordinate in inches.
+        z (float): The z-coordinate in inches.
         coordinates (tuple[float, float, float]): A tuple containing the (x, y, z) coordinates.
         vector (ndarray): A numpy array representation of the coordinate vector.
     """

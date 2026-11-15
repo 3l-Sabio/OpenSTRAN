@@ -6,9 +6,9 @@ from OpenSTRAN.Model import Model
 from OpenSTRAN.Database.Shape import Shape
 
 
-@pytest.mark.parametrize("L", [7.25, 10., 17.33], scope="class")
+@pytest.mark.parametrize("L", [87., 120., 207.96], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
-@pytest.mark.parametrize("w", [1.25, 5.3], scope="class")
+@pytest.mark.parametrize("w", [1.25/12, 5.3/12], scope="class")
 @pytest.mark.parametrize("axis", ["X", "Z"], scope="class")
 class TestSimpleColumn:
     @pytest.fixture(autouse=True, scope="class")
@@ -36,7 +36,7 @@ class TestSimpleColumn:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, w: float, L: float, axis: str):
-        expected = w * L ** 2 / (9 * sqrt(3)) * 12  # kip-ft -> kip-in
+        expected = w * L ** 2 / (9 * sqrt(3))
         if axis == "X":
             assert self.test_model.Mzz_max == pytest.approx(expected)
         else:
@@ -57,15 +57,14 @@ class TestSimpleColumn:
             assert self.test_model.Rz_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, L: float, axis: str):
-        l = L * 12  # ft -> in
-        w = w / 12 * l / 2  # klf -> kli
+        W = w * L / 2  # total load
         xi = sqrt(1 - sqrt(8 / 15))  # location of max deflection, x/L
         c = 2 * xi * (7 - 10 * xi**2 + 3 * xi**4) / 360
         if axis == "X":
-            expected = c * w * l ** 3 / (self.E * self.shape.Ix)
+            expected = c * W * L ** 3 / (self.E * self.shape.Ix)
             assert self.test_model.Ux_max == pytest.approx(expected, rel=1e-3)
         else:
-            expected = c * w * l ** 3 / (self.E * self.shape.Iy)
+            expected = c * W * L ** 3 / (self.E * self.shape.Iy)
             assert self.test_model.Uz_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float, axis: str):

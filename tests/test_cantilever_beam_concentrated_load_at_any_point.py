@@ -4,7 +4,7 @@ from OpenSTRAN.Model import Model
 from OpenSTRAN.Database.Shape import Shape
 
 
-@pytest.mark.parametrize("L", [10., 15.], scope="class")
+@pytest.mark.parametrize("L", [120., 180.], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
 @pytest.mark.parametrize("P", [7.5], scope="class")
 @pytest.mark.parametrize("x", range(0, 101, 10), scope="class")
@@ -33,8 +33,7 @@ class TestCantileverBeam:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, P: float, L: float, x: float, axis: str):
-        l = L * 12
-        b = l*x/100
+        b = L*x/100
         if axis == "Y":
             assert self.test_model.Mzz_max == pytest.approx(P * b, abs=1e-6)
         else:
@@ -54,15 +53,14 @@ class TestCantileverBeam:
             assert self.test_model.Rz_max == pytest.approx(P)
 
     def test_deflection(self, L: float, x: float, P: float, axis: str):
-        l = L * 12
-        b = l*x/100
+        b = L*x/100
         if axis == "Y":
             i = self.shape.Ix
             u = self.test_model.Uy_max
         else:
             i = self.shape.Iy
             u = self.test_model.Uz_max
-        assert u == pytest.approx(P*b**2*(3*l-b)/(6*self.E*i), rel=1e-3)
+        assert u == pytest.approx(P*b**2*(3*L-b)/(6*self.E*i), rel=1e-3)
 
     def test_node_reaction_1(self, P: float, axis: str):
         if axis == "Y":
@@ -78,8 +76,7 @@ class TestCantileverBeam:
             assert self.N2.Rz == pytest.approx(0, abs=1e-6)
 
     def test_node_reaction_moment_1(self, P: float, L: float, x: float, axis: str):
-        l = L * 12
-        b = l*x/100
+        b = L*x/100
         if axis == "Y":
             assert self.N1.Rmz == pytest.approx(P * b, abs=1e-6)
         else:

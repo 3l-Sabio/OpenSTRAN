@@ -2,6 +2,7 @@ from dataclasses import dataclass, field, asdict
 
 from .Coordinates import Coordinate
 from .Node import Node
+from .Units import NODE_SNAP_TOLERANCE
 
 from typing import Any
 
@@ -14,9 +15,9 @@ class Nodes():
         plane (str | None): The plane constraint associated with the nodes.
         count (int): The total number of nodes added.
         nodes (dict[int, Node]): Dictionary mapping node IDs to Node objects.
-        x (list[float]): List of x-coordinates.
-        y (list[float]): List of y-coordinates.
-        z (list[float]): List of z-coordinates.
+        x (list[float]): List of x-coordinates in inches.
+        y (list[float]): List of y-coordinates in inches.
+        z (list[float]): List of z-coordinates in inches.
     """
     plane: str | None = None
     count: int = 0
@@ -37,9 +38,9 @@ class Nodes():
         """Add a node to the model at the specified coordinates.
 
         Args:
-            x (float): x-coordinate in feet.
-            y (float): y-coordinate in feet.
-            z (float): z-coordinate in feet.
+            x (float): x-coordinate in inches.
+            y (float): y-coordinate in inches.
+            z (float): z-coordinate in inches.
             mesh_node (bool, optional): Whether this is a mesh node. Defaults to False.
 
         Returns:
@@ -48,9 +49,9 @@ class Nodes():
         Example:
 
             >>> N1 = frame.nodes.add_node(0, 0, 0)
-            >>> N2 = frame.nodes.add_node(0, 10, 0)
-            >>> N3 = frame.nodes.add_node(10, 10, 0)
-            >>> N4 = frame.nodes.add_node(10, 0, 0)
+            >>> N2 = frame.nodes.add_node(0, 120, 0)
+            >>> N3 = frame.nodes.add_node(120, 120, 0)
+            >>> N4 = frame.nodes.add_node(120, 0, 0)
         """
         node: Node | None = self.find_node(x, y, z)
         if node is None:
@@ -72,14 +73,14 @@ class Nodes():
         """Find a node in the model at the specified coordinates.
 
         Args:
-            x (float): x-coordinate in feet.
-            y (float): y-coordinate in feet.
-            z (float): z-coordinate in feet.
+            x (float): x-coordinate in inches.
+            y (float): y-coordinate in inches.
+            z (float): z-coordinate in inches.
 
         Returns:
             Node | None: The matching node object if found, None otherwise.
-        """        # Define a floating point error tolerance.
-        pointError: float = 1*10**-6
+        """
+        pointError: float = NODE_SNAP_TOLERANCE
 
         # Iterate through the model nodes.
         for node in self.nodes.values():

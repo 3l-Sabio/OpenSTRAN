@@ -47,11 +47,11 @@ Adding Nodes
 
 .. code-block:: python
 
-   # Add nodes at specific coordinates (x, y, z in feet)
+   # Add nodes at specific coordinates (x, y, z in inches)
    N1 = nodes.add_node(0, 0, 0)      # Node at origin
-   N2 = nodes.add_node(10, 0, 0)     # 10 ft along X-axis
-   N3 = nodes.add_node(10, 8, 0)     # 10 ft X, 8 ft Y
-   N4 = nodes.add_node(0, 8, 0)      # 8 ft along Y-axis
+   N2 = nodes.add_node(120, 0, 0)    # 120 in (10 ft) along X-axis
+   N3 = nodes.add_node(120, 96, 0)   # 120 in X, 96 in (8 ft) Y
+   N4 = nodes.add_node(0, 96, 0)     # 96 in along Y-axis
 
 Duplicate Prevention
 ^^^^^^^^^^^^^^^^^^^^
@@ -74,7 +74,7 @@ Locate existing nodes by coordinates:
 .. code-block:: python
 
    # Find node at specific location
-   existing_node = nodes.find_node(10, 8, 0)
+   existing_node = nodes.find_node(120, 96, 0)
 
    if existing_node:
        print(f"Found node {existing_node.node_ID}")
@@ -124,8 +124,8 @@ Nodes are automatically assigned sequential IDs starting from 1:
    model = Model()
 
    N1 = model.nodes.add_node(0, 0, 0)    # node_ID = 1
-   N2 = model.nodes.add_node(10, 0, 0)   # node_ID = 2
-   N3 = model.nodes.add_node(0, 10, 0)   # node_ID = 3
+   N2 = model.nodes.add_node(120, 0, 0)  # node_ID = 2
+   N3 = model.nodes.add_node(0, 120, 0)  # node_ID = 3
 
    print(f"Total nodes: {model.nodes.count}")  # 3
 
@@ -162,19 +162,19 @@ Node coordinates use floating-point comparison with tolerance:
 .. code-block:: python
 
    # Tolerance for duplicate detection
-   tolerance = 1e-6  # 0.000001 feet
+   tolerance = 1.2e-5  # inches
 
    # These are considered the same location
-   N1 = nodes.add_node(1.0000005, 2.0, 3.0)
-   N2 = nodes.add_node(1.0000007, 2.0, 3.0)  # Within tolerance
+   N1 = nodes.add_node(1.000005, 2.0, 3.0)
+   N2 = nodes.add_node(1.000007, 2.0, 3.0)  # Within tolerance
 
    print(N1 is N2)  # True
 
 Units
 -----
 
-* **Coordinates**: feet (ft)
-* **Tolerance**: feet (same as coordinates)
+* **Coordinates**: inches (in)
+* **Tolerance**: 1.2e-5 inches (``NODE_SNAP_TOLERANCE`` in ``OpenSTRAN.Units``)
 
 Performance Considerations
 --------------------------

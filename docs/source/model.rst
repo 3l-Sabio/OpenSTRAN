@@ -44,10 +44,10 @@ Adding Nodes
 
 .. code-block:: python
 
-   # Add nodes at specific coordinates (x, y, z in feet)
-   N1 = model.nodes.add_node(0, 0, 0)    # Origin
-   N2 = model.nodes.add_node(10, 0, 0)   # 10 ft along X-axis
-   N3 = model.nodes.add_node(10, 10, 0)  # 10 ft along X and Y axes
+   # Add nodes at specific coordinates (x, y, z in inches)
+   N1 = model.nodes.add_node(0, 0, 0)      # Origin
+   N2 = model.nodes.add_node(120, 0, 0)    # 120 in (10 ft) along X-axis
+   N3 = model.nodes.add_node(120, 120, 0)  # 120 in along X and Y axes
 
 Applying Boundary Conditions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -81,7 +81,7 @@ Applying Loads
 .. code-block:: python
 
    # Add distributed load (magnitude, direction, start %, end %)
-   M1.add_distributed_load(-1, -1, 'Y', 0, 100)  # 1 kip/ft downward
+   M1.add_distributed_load(-1/12, -1/12, 'Y', 0, 100)  # 1 kip/ft (1/12 kip/in) downward
 
 Solving and Results
 ^^^^^^^^^^^^^^^^^^^
@@ -175,7 +175,7 @@ Member Forces
 
    print(f"Max axial force: {model.axial_max:.2f} kips")
    print(f"Max shear force: {model.Vy_max:.2f} kips")
-   print(f"Max moment: {model.Mzz_max:.2f} kip-ft")
+   print(f"Max moment: {model.Mzz_max:.2f} kip-in")
 
 Deflections
 ^^^^^^^^^^^
@@ -192,11 +192,12 @@ Deflections
 Units
 -----
 
-OpenSTRAN uses Imperial units throughout:
+OpenSTRAN does not convert units. Units must be entered per the reference unit table below:
 
-* **Length**: feet (ft) for coordinates, inches (in) for member dimensions
+* **Length**: inches (in) for node coordinates, brace locations, member dimensions and deflections
 * **Force**: kips (1000 lbs)
-* **Moment**: kip-feet (kip-ft)
+* **Distributed load**: kips per inch
+* **Moment**: kip-inches (kip-in) for moments applied to nodes and for results
 * **Stress**: ksi (1000 psi)
 * **Modulus**: ksi
 
@@ -206,7 +207,7 @@ Limitations
 * First-order elastic analysis only
 * Neglects shear and torsional deformations
 * No matrix sparseness optimization
-* Imperial units only
+* No unit conversion; inputs are in inches and kips
 
 See Also
 --------

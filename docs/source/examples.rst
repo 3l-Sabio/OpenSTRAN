@@ -17,10 +17,10 @@ The following example demonstrates how to create a simple beam model, apply load
    model = Model()
 
    # create a node located at the origin
-   N1 = model.nodes.add_node(0, 0, 0)  # (X [ft], Y [ft], Z[ft])
+   N1 = model.nodes.add_node(0, 0, 0)  # (X [in], Y [in], Z [in])
 
-   # create a node 10 feet away from the origin along the global X axis.
-   N2 = model.nodes.add_node(10, 0, 0)  # (X [ft], Y [ft], Z[ft])
+   # create a node 120 inches (10 feet) away from the origin along the global X axis.
+   N2 = model.nodes.add_node(120, 0, 0)  # (X [in], Y [in], Z [in])
 
    # restrain the nodes from translation.
    N1.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
@@ -35,8 +35,9 @@ The following example demonstrates how to create a simple beam model, apply load
 
    M1 = model.members.add_member(N1, N2, shape=s)
 
-   # add a load of -1 kips in the global Y direction along M1's span.
-   M1.add_distributed_load(-1, -1, 'Y', 0, 100)
+   # add a load of -1 kip per foot (-1/12 kip per inch) in the global Y
+   # direction along M1's span.
+   M1.add_distributed_load(-1/12, -1/12, 'Y', 0, 100)
 
    # solve the model.
    model.solve()
@@ -65,8 +66,9 @@ The following example demonstrates how to create a hung beam by releasing moment
    # instantiate an empty model
    model = Model()
 
-   # create 6 nodes located at the listed locations along the global X axis.
-   x_coords = [0,12,15,25,28,40]
+   # create 6 nodes located at the listed locations, in inches, along the
+   # global X axis (0, 12, 15, 25, 28 and 40 feet).
+   x_coords = [0,144,180,300,336,480]
    nodes = []
 
    for x in x_coords:
@@ -94,9 +96,10 @@ The following example demonstrates how to create a hung beam by releasing moment
       elif i in [2]:
          members.append(model.members.add_member(node, nodes[i+2], i_release=hinge, j_release=hinge, shape=hung_beam))
 
-   # add a load of -1 kips in the global Y direction along all member spans
+   # add a load of -1 kip per foot (-1/12 kip per inch) in the global Y
+   # direction along all member spans
    for mbr in members:
-      mbr.add_distributed_load(-1, -1, 'Y', 0, 100)
+      mbr.add_distributed_load(-1/12, -1/12, 'Y', 0, 100)
 
    # solve the model.
    model.solve()

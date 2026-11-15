@@ -25,7 +25,7 @@ def reactions(P: float, l: float, x: float) -> tuple[float, float, float, float]
     return r_fixed, r_supported, m_fixed, m_load
 
 
-@pytest.mark.parametrize("L", [10., 15.], scope="class")
+@pytest.mark.parametrize("L", [120., 180.], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
 @pytest.mark.parametrize("P", [7.5], scope="class")
 @pytest.mark.parametrize("x", range(0, 101, 10), scope="class")
@@ -54,7 +54,7 @@ class TestBeamFixedAtOneEndSupportedAtOther:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, P: float, L: float, x: float, axis: str):
-        _, _, m_fixed, m_load = reactions(P, L * 12, x)
+        _, _, m_fixed, m_load = reactions(P, L, x)
         expected = max(m_fixed, m_load)
         if axis == "Y":
             assert self.test_model.Mzz_max == pytest.approx(expected, abs=1e-6)
@@ -62,7 +62,7 @@ class TestBeamFixedAtOneEndSupportedAtOther:
             assert self.test_model.Myy_max == pytest.approx(expected, abs=1e-6)
 
     def test_max_shear(self, P: float, L: float, x: float, axis: str):
-        r_fixed, r_supported, _, _ = reactions(P, L * 12, x)
+        r_fixed, r_supported, _, _ = reactions(P, L, x)
         expected = 0.0 if x == 0 or x == 100 else max(r_fixed, r_supported)
         if axis == "Y":
             assert self.test_model.Vy_max == pytest.approx(expected)
@@ -70,7 +70,7 @@ class TestBeamFixedAtOneEndSupportedAtOther:
             assert self.test_model.Vz_max == pytest.approx(expected)
 
     def test_max_reaction(self, P: float, L: float, x: float, axis: str):
-        r_fixed, r_supported, _, _ = reactions(P, L * 12, x)
+        r_fixed, r_supported, _, _ = reactions(P, L, x)
         expected = max(r_fixed, r_supported)
         if axis == "Y":
             assert self.test_model.Ry_max == pytest.approx(expected)
@@ -78,40 +78,39 @@ class TestBeamFixedAtOneEndSupportedAtOther:
             assert self.test_model.Rz_max == pytest.approx(expected)
 
     def test_deflection(self, L: float, x: float, P: float, axis: str):
-        l = L * 12
-        b = l*x/100   # fixed end to load
-        a = l - b     # load to supported end
+        b = L*x/100   # fixed end to load
+        a = L - b     # load to supported end
         if axis == "Y":
             i = self.shape.Ix
             u = self.test_model.Uy_max
         else:
             i = self.shape.Iy
             u = self.test_model.Uz_max
-        if a < (sqrt(2) - 1) * l:
+        if a < (sqrt(2) - 1) * L:
             # max deflection lies between the load and the fixed end
             assert u == pytest.approx(
-                P*a*(l**2-a**2)**3/(3*self.E*i*(3*l**2-a**2)**2), rel=1e-3)
+                P*a*(L**2-a**2)**3/(3*self.E*i*(3*L**2-a**2)**2), rel=1e-3)
         else:
             # max deflection lies between the supported end and the load
             assert u == pytest.approx(
-                P*a*b**2/(6*self.E*i)*sqrt(a/(2*l+a)), rel=1e-3)
+                P*a*b**2/(6*self.E*i)*sqrt(a/(2*L+a)), rel=1e-3)
 
     def test_node_reaction_1(self, P: float, L: float, x: float, axis: str):
-        r_fixed, _, _, _ = reactions(P, L * 12, x)
+        r_fixed, _, _, _ = reactions(P, L, x)
         if axis == "Y":
             assert self.N1.Ry == pytest.approx(r_fixed, abs=1e-6)
         else:
             assert self.N1.Rz == pytest.approx(r_fixed, abs=1e-6)
 
     def test_node_reaction_2(self, P: float, L: float, x: float, axis: str):
-        _, r_supported, _, _ = reactions(P, L * 12, x)
+        _, r_supported, _, _ = reactions(P, L, x)
         if axis == "Y":
             assert self.N2.Ry == pytest.approx(r_supported, abs=1e-6)
         else:
             assert self.N2.Rz == pytest.approx(r_supported, abs=1e-6)
 
     def test_node_reaction_moment_1(self, P: float, L: float, x: float, axis: str):
-        _, _, m_fixed, _ = reactions(P, L * 12, x)
+        _, _, m_fixed, _ = reactions(P, L, x)
         if axis == "Y":
             assert self.N1.Rmz == pytest.approx(m_fixed, abs=1e-6)
         else:

@@ -14,9 +14,9 @@ from OpenSTRAN.Database.Shape import Shape
 #   max shear           5 * w * L / 8   (each side of the middle support)
 #   max moment          w * L**2 / 8    (over the middle support)
 
-@pytest.mark.parametrize("L", [7.25, 10., 17.33], scope="class")
+@pytest.mark.parametrize("L", [87., 120., 207.96], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
-@pytest.mark.parametrize("w", [1.25, 5.3], scope="class")
+@pytest.mark.parametrize("w", [1.25/12, 5.3/12], scope="class")
 @pytest.mark.parametrize("axis", ["Y", "Z"], scope="class")
 @pytest.mark.parametrize("mesh", [1, 2, 50], scope="class")
 class TestTwoSpanContinuousBeam:
@@ -50,7 +50,7 @@ class TestTwoSpanContinuousBeam:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, w: float, L: float, axis: str):
-        expected = w * L ** 2 / 8 * 12   # kip-ft -> kip-in
+        expected = w * L ** 2 / 8
         if axis == "Y":
             assert self.test_model.Mzz_max == pytest.approx(expected)
         else:
@@ -73,15 +73,13 @@ class TestTwoSpanContinuousBeam:
     def test_max_deflection(self, w: float, L: float, axis: str, mesh: int):
         if mesh < 50:
             pytest.skip("deflection is only sampled at the mesh nodes")
-        l = L * 12  # ft -> in
-        w = w / 12  # klf -> kli
         xi = (1 + sqrt(33)) / 16  # location of max deflection, x/L
         c = (xi - 3 * xi**3 + 2 * xi**4) / 48
         if axis == "Y":
-            expected = c * w * l ** 4 / (self.E * self.shape.Ix)
+            expected = c * w * L ** 4 / (self.E * self.shape.Ix)
             assert self.test_model.Uy_max == pytest.approx(expected, rel=1e-3)
         else:
-            expected = c * w * l ** 4 / (self.E * self.shape.Iy)
+            expected = c * w * L ** 4 / (self.E * self.shape.Iy)
             assert self.test_model.Uz_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float, axis: str):

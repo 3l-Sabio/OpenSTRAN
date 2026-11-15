@@ -72,7 +72,7 @@ Members are typically created through the :class:`Members` collection:
 
    # Create nodes
    N1 = model.nodes.add_node(0, 0, 0)
-   N2 = model.nodes.add_node(10, 0, 0)
+   N2 = model.nodes.add_node(120, 0, 0)
 
    # Method 1: Using shape database
    shape = Shape("W12X14")  # Standard steel section
@@ -139,8 +139,8 @@ Members can have different lateral bracing configurations affecting buckling:
    # Midspan bracing
    M4 = model.members.add_member(N1, N2, bracing="midspan")
 
-   # Custom bracing locations (as fraction of length)
-   M5 = model.members.add_member(N1, N2, bracing=[0.25, 0.5, 0.75])
+   # Custom bracing locations (distance from the start node in inches)
+   M5 = model.members.add_member(N1, N2, bracing=[30, 60, 90])
 
 Buckling Analysis
 -----------------
@@ -164,7 +164,7 @@ Loads are applied to members through various methods:
 .. code-block:: python
 
    # Distributed load along member
-   M1.add_distributed_load(-1.0, -1.0, 'Y', 0, 100)  # 1 kip/ft downward
+   M1.add_distributed_load(-1/12, -1/12, 'Y', 0, 100)  # 1 kip/ft (1/12 kip/in) downward
 
    # Point load at specific location
    M1.add_point_load(5.0, 'Y', 50)  # 5 kips downward at midspan
@@ -224,7 +224,7 @@ After solving, member results are available through submembers:
 
        print(f"Axial force: {axial[0]:.2f} kips")
        print(f"Shear force: {shear[0]:.2f} kips")
-       print(f"Moment: {moment[0]:.2f} kip-ft")
+       print(f"Moment: {moment[0]:.2f} kip-in")
 
 Properties Access
 -----------------
@@ -239,9 +239,10 @@ Properties Access
 Units
 -----
 
-* **Length**: inches (in) for dimensions, feet (ft) for coordinates
+* **Length**: inches (in) for node coordinates, brace locations, section dimensions and member ``length``
 * **Force**: kips
-* **Moment**: kip-inches (automatically converted)
+* **Distributed load**: kips per inch
+* **Moment**: kip-inches
 * **Stress/Modulus**: ksi (1000 psi)
 
 Performance Notes

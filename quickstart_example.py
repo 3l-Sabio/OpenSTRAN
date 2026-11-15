@@ -5,10 +5,10 @@ from OpenSTRAN.Database.Shape import Shape
 model = Model()
 
 # create a node located at the origin
-N1 = model.nodes.add_node(0, 0, 0)  # (X [ft], Y [ft], Z[ft])
+N1 = model.nodes.add_node(0, 0, 0)  # (X [in], Y [in], Z [in])
 
-# create a node 10 feet away from the origin along the global X axis.
-N2 = model.nodes.add_node(10, 0, 0)  # (X [ft], Y [ft], Z[ft])
+# create a node 120 inches (10 feet) away from the origin along the global X axis.
+N2 = model.nodes.add_node(120, 0, 0)  # (X [in], Y [in], Z [in])
 
 # restrain the nodes from translation.
 N1.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
@@ -26,8 +26,9 @@ M1 = model.members.add_member(N1, N2, shape=s)
 # Add a -10 kip point load 35% along the member.
 M1.add_point_load(-10, 'Y', 35)
 
-# Add a -1 kip/ft distributed load over the middle half of the span.
-M1.add_distributed_load(-1, -1, 'Y', 25, 75)
+# Add a -1 kip/ft (-1/12 kip/in) distributed load over the middle half of the
+# span.
+M1.add_distributed_load(-1/12, -1/12, 'Y', 25, 75)
 
 # solve the model.
 model.solve()

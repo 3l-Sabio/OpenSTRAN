@@ -45,7 +45,22 @@ OpenSTRAN allows for the creation of simple two-dimensional frame elements and c
 * First order elastic analysis only.
 * Shear and torsional deformations are not considered.
 * Does not take advantage of matrix sparseness or bandedness.
-* Supports Imperial units only.
+* Does not convert units. See [Units](#units).
+
+## Units
+OpenSTRAN does not convert units. Values must be passed to the API per the reference table below:
+
+| Quantity | Unit |
+|---|---|
+| Node coordinates, brace locations, deflections | inches |
+| Point loads, nodal forces, reactions | kips |
+| Distributed loads | kips per inch |
+| Nodal moments, member moments, reaction moments | kip-inches |
+| Section and material properties | inches and ksi |
+
+Load locations along a member are given as a percentage of its length.
+
+**Changed after version 0.0.6.** Versions up to 0.0.6 took node coordinates in feet, distributed loads in kips per foot and nodal moments in kip-feet. A script written for those versions can be updated by multiplying node coordinates and nodal moments by 12, and dividing distributed loads by 12.
 
 ## What happened to the UI?
 The graphical user interface that was programmed using <a href=https://tkdocs.com/shipman/>Tkinter</a> and <a href=https://matplotlib.org/stable/plot_types/basic/plot.html>matplotlib</a> as a backend has been removed and is no longer being further developed. It was slow, not portable across operating systems, and overall a poor implementation for real time structural modeling.
@@ -84,10 +99,10 @@ from OpenSTRAN.Database.Shape import Shape
 model = Model()
 
 # create a node located at the origin
-N1 = model.nodes.add_node(0, 0, 0)  # (X [ft], Y [ft], Z[ft])
+N1 = model.nodes.add_node(0, 0, 0)  # (X [in], Y [in], Z [in])
 
-# create a node 10 feet away from the origin along the global X axis.
-N2 = model.nodes.add_node(10, 0, 0)  # (X [ft], Y [ft], Z[ft])
+# create a node 120 inches (10 feet) away from the origin along the global X axis.
+N2 = model.nodes.add_node(120, 0, 0)  # (X [in], Y [in], Z [in])
 
 # restrain the nodes from translation.
 N1.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
@@ -102,8 +117,9 @@ s = Shape("W12X14")
 
 M1 = model.members.add_member(N1, N2, shape=s)
 
-# add a load of -1 kips per lineal foot in the global Y direction along M1's span.
-M1.add_distributed_load(-1, -1, 'Y', 0, 100)
+# add a load of -1 kip per foot (-1/12 kip per inch) in the global Y direction
+# along M1's span.
+M1.add_distributed_load(-1/12, -1/12, 'Y', 0, 100)
 
 # solve the model.
 model.solve()
@@ -120,16 +136,16 @@ Nodal Reactions
                 Rx = 0.00 kips
                 Ry = 5.00 kips
                 Rz = 0.00 kips
-                Mx = 0.00 kip-ft
-                My = 0.00 kip-ft
-                Mz = 0.00 kip-ft
+                Mx = 0.00 kip-in
+                My = 0.00 kip-in
+                Mz = 0.00 kip-in
         Node 2:
                 Rx = 0.00 kips
                 Ry = 5.00 kips
                 Rz = 0.00 kips
-                Mx = 0.00 kip-ft
-                My = 0.00 kip-ft
-                Mz = 0.00 kip-ft
+                Mx = 0.00 kip-in
+                My = 0.00 kip-in
+                Mz = 0.00 kip-in
 
 
 ```

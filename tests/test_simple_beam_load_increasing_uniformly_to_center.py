@@ -4,9 +4,9 @@ from OpenSTRAN.Model import Model
 from OpenSTRAN.Database.Shape import Shape
 
 
-@pytest.mark.parametrize("L", [4.75, 7.25, 10., 17.33, 26.], scope="class")
+@pytest.mark.parametrize("L", [57., 87., 120., 207.96, 312.], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16", "L6X6X1/2"], scope="class")
-@pytest.mark.parametrize("w", [1.25, 2.6, 5.3], scope="class")
+@pytest.mark.parametrize("w", [1.25/12, 2.6/12, 5.3/12], scope="class")
 @pytest.mark.parametrize("axis", ["Y", "Z"], scope="class")
 class TestSimpleBeam:
     @pytest.fixture(autouse=True, scope="class")
@@ -34,7 +34,7 @@ class TestSimpleBeam:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, w: float, L: float, axis: str):
-        expected = w * L ** 2 / 12 * 12  # kip-ft -> kip-in
+        expected = w * L ** 2 / 12
         if axis == "Y":
             assert self.test_model.Mzz_max == pytest.approx(expected)
         else:
@@ -55,13 +55,12 @@ class TestSimpleBeam:
             assert self.test_model.Rz_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, L: float, axis: str):
-        l = L * 12  # ft -> in
-        W = w / 12 * l / 2
+        W = w * L / 2  # total load
         if axis == "Y":
-            expected = W * l ** 3 / (60 * self.E * self.shape.Ix)
+            expected = W * L ** 3 / (60 * self.E * self.shape.Ix)
             assert self.test_model.Uy_max == pytest.approx(expected, rel=1e-3)
         else:
-            expected = W * l ** 3 / (60 * self.E * self.shape.Iy)
+            expected = W * L ** 3 / (60 * self.E * self.shape.Iy)
             assert self.test_model.Uz_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float, axis: str):

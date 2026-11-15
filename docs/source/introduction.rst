@@ -20,7 +20,7 @@ Limitations
 * First order elastic analysis only.
 * Shear and torsional deformations are not considered.
 * Does not take advantage of matrix sparseness or bandedness.
-* Supports Imperial units only.
+* Does not convert units. Values must be entered in inches and kips.
 
 In Development
 --------------

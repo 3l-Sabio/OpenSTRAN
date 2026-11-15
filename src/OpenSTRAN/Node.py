@@ -16,9 +16,9 @@ class Node():
         Fx (float): Applied force in the x-direction in kips. Defaults to 0.0.
         Fy (float): Applied force in the y-direction in kips. Defaults to 0.0.
         Fz (float): Applied force in the z-direction in kips. Defaults to 0.0.
-        Mx (float): Applied moment about the x-axis in kip-ft. Defaults to 0.0.
-        My (float): Applied moment about the y-axis in kip-ft. Defaults to 0.0.
-        Mz (float): Applied moment about the z-axis in kip-ft. Defaults to 0.0.
+        Mx (float): Applied moment about the x-axis in kip-in. Defaults to 0.0.
+        My (float): Applied moment about the y-axis in kip-in. Defaults to 0.0.
+        Mz (float): Applied moment about the z-axis in kip-in. Defaults to 0.0.
         restraint (list[int]): List of 6 integers indicating restrained degrees of freedom
             [Ux, Uy, Uz, φx, φy, φz]. Defaults to [0, 0, 0, 0, 0, 0].
         plane (str | None): The plane associated with the node. Defaults to None.
@@ -110,20 +110,17 @@ class Node():
         """Add a load to the node.
 
         Args:
-            mag (float): Magnitude of the load. Units are kips for forces and kip-ft for moments.
+            mag (float): Magnitude of the load. Units are kips for forces and kip-in for moments.
             lType (str, optional): Type of load. Either 'moment' or 'force'. Defaults to 'moment'.
             direction (str, optional): Direction of the load. 'X', 'Y', or 'Z'. Defaults to 'y'.
-
-        Note:
-            For moments, the magnitude is multiplied by 12 (kip-in to kip-ft conversion).
         """
         if lType == 'moment':
             if direction == 'X':
-                self.Mx += mag*12
+                self.Mx += mag
             if direction == 'Y':
-                self.My += mag*12
+                self.My += mag
             if direction == 'Z':
-                self.Mz += mag*12
+                self.Mz += mag
         else:
             if direction == 'X':
                 self.Fx += mag

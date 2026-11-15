@@ -30,7 +30,7 @@ Loads
 ^^^^^
 
 * **Fx, Fy, Fz**: Applied forces in X, Y, Z directions (kips)
-* **Mx, My, Mz**: Applied moments about X, Y, Z axes (kip-ft)
+* **Mx, My, Mz**: Applied moments about X, Y, Z axes (kip-in)
 * **eFx, eFy, eFz, eMx, eMy, eMz**: Equivalent loads from member discretization
 
 Boundary Conditions
@@ -44,7 +44,7 @@ Analysis Results
 * **Ux, Uy, Uz**: Translational displacements (inches)
 * **phi_x, phi_y, phi_z**: Rotational displacements (radians)
 * **Rx, Ry, Rz**: Reaction forces (kips)
-* **Rmx, Rmy, Rmz**: Reaction moments (kip-ft)
+* **Rmx, Rmy, Rmz**: Reaction moments (kip-in)
 
 Basic Usage
 -----------
@@ -60,10 +60,10 @@ Nodes are typically created through the :class:`Nodes` collection:
 
    model = Model()
 
-   # Add nodes at coordinates (x, y, z in feet)
+   # Add nodes at coordinates (x, y, z in inches)
    node1 = model.nodes.add_node(0, 0, 0)      # Origin
-   node2 = model.nodes.add_node(10, 0, 0)     # 10 ft along X
-   node3 = model.nodes.add_node(0, 8, 0)      # 8 ft along Y
+   node2 = model.nodes.add_node(120, 0, 0)    # 120 in (10 ft) along X
+   node3 = model.nodes.add_node(0, 96, 0)     # 96 in (8 ft) along Y
 
 Applying Boundary Conditions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -94,9 +94,7 @@ Applying Loads
    node3.Fz = 2.5    # 2.5 kips in Z direction
 
    # Add moments using add_load method
-   node3.add_load(15.0, 'moment', 'Z')  # 15 kip-ft moment about Z-axis
-
-   # Note: moments are automatically converted from kip-ft to kip-in internally
+   node3.add_load(180.0, 'moment', 'Z')  # 180 kip-in (15 kip-ft) moment about Z-axis
 
 Plane Constraints
 -----------------
@@ -167,9 +165,9 @@ The restraint list corresponds to these DOF in order.
 Units
 -----
 
-* **Coordinates**: feet (ft)
+* **Coordinates**: inches (in)
 * **Forces**: kips (1000 lbs)
-* **Moments**: kip-feet (kip-ft)
+* **Moments**: kip-inches (kip-in) for ``add_load``, stored moments and reaction moments
 * **Displacements**: inches (in)
 * **Rotations**: radians (rad)
 
