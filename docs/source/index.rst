@@ -15,4 +15,5 @@ OpenSTRAN - Open Source Structural Analysis with Python
    introduction
    installation
    examples
+   performance
    modules
