@@ -6,35 +6,33 @@ from OpenSTRAN.Model import Model
 from OpenSTRAN.Database.Shape import Shape
 
 
-@pytest.mark.parametrize("L", [10., 15.])
-@pytest.mark.parametrize("s", ["W12X14", "HSS6X6X3/16"])
-@pytest.mark.parametrize("P", [2.5, 7.5])
-@pytest.mark.parametrize("x", range(0, 101, 10))
-@pytest.mark.parametrize("axis", ["Y", "Z"])
+@pytest.mark.parametrize("L", [10., 15.], scope="class")
+@pytest.mark.parametrize("s", ["W12X14", "HSS6X6X3/16"], scope="class")
+@pytest.mark.parametrize("P", [2.5, 7.5], scope="class")
+@pytest.mark.parametrize("x", range(0, 101, 10), scope="class")
+@pytest.mark.parametrize("axis", ["Y", "Z"], scope="class")
 class TestSimpleBeam:
-    @pytest.fixture(autouse=True)
-    def setup_model(self, L: float, s: str, P: float, x: float, axis: str):
-        # run before every test method for the current parameter set
-        self.test_model = Model()
-        self.shape = Shape(s)
-        self.E = 29000
-        self.G = 12000
+    @pytest.fixture(autouse=True, scope="class")
+    @classmethod
+    def setup_model(cls, L: float, s: str, P: float, x: float, axis: str):
+        cls.test_model = Model()
+        cls.shape = Shape(s)
+        cls.E = 29000
+        cls.G = 12000
 
-        self.N1 = self.test_model.nodes.add_node(0, 0, 0)
-        self.N2 = self.test_model.nodes.add_node(L, 0, 0)
+        cls.N1 = cls.test_model.nodes.add_node(0, 0, 0)
+        cls.N2 = cls.test_model.nodes.add_node(L, 0, 0)
 
-        self.N1.restraint = [1, 1, 1, 1, 0, 0]
-        self.N2.restraint = [1, 1, 1, 1, 0, 0]
+        cls.N1.restraint = [1, 1, 1, 1, 0, 0]
+        cls.N2.restraint = [1, 1, 1, 1, 0, 0]
 
-        self.M1 = self.test_model.members.add_member(
-            self.N1, self.N2, shape=self.shape, E=self.E, G=self.G
+        cls.M1 = cls.test_model.members.add_member(
+            cls.N1, cls.N2, shape=cls.shape, E=cls.E, G=cls.G
         )
-        self.M1.add_point_load(-P, axis, x)
+        cls.M1.add_point_load(-P, axis, x)
 
-        self.test_model.solve()
-        self.test_model.maxMbrForces()
-        self.test_model.maxReactions()
-        self.test_model.max_deflection()
+        cls.test_model.solve()
+        cls.test_model.max_deflection()
 
     def test_max_moment(self, P: float, L: float, x: float, axis: str):
         l = L * 12

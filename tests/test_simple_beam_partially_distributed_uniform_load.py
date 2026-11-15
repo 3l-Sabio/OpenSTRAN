@@ -55,36 +55,35 @@ def max_deflection(w: float, L: float, a: float, b: float, E: float, I: float) -
     return max(y(x) for x in candidates)
 
 
-@pytest.mark.parametrize("L", [10.])
-@pytest.mark.parametrize("a, b", MOVING_LOADS)
-@pytest.mark.parametrize("s", ["W12X14"])
-@pytest.mark.parametrize("w", [1.])
-@pytest.mark.parametrize("axis", ["Y", "Z"])
+@pytest.mark.parametrize("L", [10.], scope="class")
+@pytest.mark.parametrize("a, b", MOVING_LOADS, scope="class")
+@pytest.mark.parametrize("s", ["W12X14"], scope="class")
+@pytest.mark.parametrize("w", [1.], scope="class")
+@pytest.mark.parametrize("axis", ["Y", "Z"], scope="class")
 class TestSimpleBeam:
-    @pytest.fixture(autouse=True)
-    def setup_model(self, L: float, s: str, w: float, a: float, b: float, axis: str):
-        # run before every test method for the current parameter set
-        self.test_model = Model()
-        self.shape = Shape(s)
-        self.E = 29000
-        self.G = 12000
+    @pytest.fixture(autouse=True, scope="class")
+    @classmethod
+    def setup_model(cls, L: float, s: str, w: float, a: float, b: float, axis: str):
+        # run once per parameter set; the test methods share the solved model
+        cls.test_model = Model()
+        cls.shape = Shape(s)
+        cls.E = 29000
+        cls.G = 12000
 
-        self.N1 = self.test_model.nodes.add_node(0, 0, 0)
-        self.N2 = self.test_model.nodes.add_node(L, 0, 0)
+        cls.N1 = cls.test_model.nodes.add_node(0, 0, 0)
+        cls.N2 = cls.test_model.nodes.add_node(L, 0, 0)
 
-        self.N1.restraint = [1, 1, 1, 1, 0, 0]
-        self.N2.restraint = [1, 1, 1, 1, 0, 0]
+        cls.N1.restraint = [1, 1, 1, 1, 0, 0]
+        cls.N2.restraint = [1, 1, 1, 1, 0, 0]
 
-        self.M1 = self.test_model.members.add_member(
-            self.N1, self.N2, shape=self.shape, E=self.E, G=self.G
+        cls.M1 = cls.test_model.members.add_member(
+            cls.N1, cls.N2, shape=cls.shape, E=cls.E, G=cls.G
         )
 
-        self.M1.add_distributed_load(-w, -w, axis, a, a + b)
+        cls.M1.add_distributed_load(-w, -w, axis, a, a + b)
 
-        self.test_model.solve()
-        self.test_model.maxMbrForces()
-        self.test_model.maxReactions()
-        self.test_model.max_deflection()
+        cls.test_model.solve()
+        cls.test_model.max_deflection()
 
     def test_max_moment(self, w: float, L: float, a: float, b: float, axis: str):
         a_len = L * a / 100          # ft, left support to start of load
