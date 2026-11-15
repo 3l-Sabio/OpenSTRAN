@@ -1,14 +1,16 @@
 {
 	"name": "OpenSTRAN development environment",
-	"image": "mcr.microsoft.com/devcontainers/base:resolute",
-	"features": {
-		"ghcr.io/devcontainers/features/python:1": {
-			"installTools": true,
-			"version": "3.14"
-		},
-		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
-		"ghcr.io/devcontainers/features/node:2": {}
+	"image": "dev-base:python",
+	"initializeCommand": "mkdir -p ${localEnv:HOME}/.claude-docker",
+	"mounts": [
+		"source=${localEnv:HOME}/.claude-docker,target=/claude-state,type=bind"
+	],
+	"containerEnv": {
+		"CLAUDE_CONFIG_DIR": "/claude-state"
 	},
+	"runArgs":[
+		"--name", "${localWorkspaceFolderBasename}"
+	],
 	"customizations": {
 		"vscode": {
 			"extensions": [
