@@ -13,10 +13,10 @@ from OpenSTRAN.Database.Shape import Shape
 #
 #   max shear           (W / 2) * cos(slope)
 #   max axial           (W / 2) * sin(slope)
-@pytest.mark.parametrize("run", [8., 12.], scope="class")
-@pytest.mark.parametrize("rise", [3., 6., 9.], scope="class")
+@pytest.mark.parametrize("run", [96., 144.], scope="class")
+@pytest.mark.parametrize("rise", [36., 72., 108.], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
-@pytest.mark.parametrize("w", [1.25, 5.3], scope="class")
+@pytest.mark.parametrize("w", [1.25/12, 5.3/12], scope="class")
 class TestInclinedBeam:
     @pytest.fixture(autouse=True, scope="class")
     @classmethod
@@ -43,7 +43,7 @@ class TestInclinedBeam:
 
     def test_max_moment(self, w: float, run: float, rise: float):
         length = hypot(run, rise)
-        expected = w * length * run / 8 * 12   # kip-ft -> kip-in
+        expected = w * length * run / 8
         assert self.test_model.Mzz_max == pytest.approx(expected)
 
     def test_max_shear(self, w: float, run: float, rise: float):
@@ -64,13 +64,11 @@ class TestInclinedBeam:
         length = hypot(run, rise)
         cos = run / length
         sin = rise / length
-        l = length * 12  # ft -> in
-        w = w / 12  # klf -> kli
         # vertical deflection at midspan: the bending deflection under the
         # load component across the member, plus the axial shortening under
         # the component along the member, each resolved onto global Y
-        bending = 5 * (w * cos) * l ** 4 / (384 * self.E * self.shape.Ix)
-        axial = (w * sin) * l ** 2 / (8 * self.E * self.shape.A)
+        bending = 5 * (w * cos) * length ** 4 / (384 * self.E * self.shape.Ix)
+        axial = (w * sin) * length ** 2 / (8 * self.E * self.shape.A)
         expected = bending * cos + axial * sin
         assert self.test_model.Uy_max == pytest.approx(expected, rel=1e-3)
 

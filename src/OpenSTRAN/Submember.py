@@ -1,4 +1,5 @@
 from .Node import Node
+from .Units import VERTICAL_TOLERANCE
 
 import numpy as np
 
@@ -29,7 +30,7 @@ class SubMember():
         J (float): Polar moment of inertia.
         ENAs (dict[str, list[float]]): Equivalent nodal actions.
         results (dict[str, list[float]]): Analysis results storage.
-        length (float): Submember length (computed).
+        length (float): Submember length in inches (computed).
         rotation_matrix (np.ndarray): Rotation matrix from local to global coordinates.
         transformation_matrix (np.ndarray): Transformation matrix for coordinate conversion.
         Kl (np.ndarray): Local stiffness matrix.
@@ -91,10 +92,10 @@ class SubMember():
             'minor axis moments': [],
             'major axis moments': []
         }
-        # Local distributed-load intensities [i-end, j-end] in the member's
-        # major (local y) and minor (local z) bending planes. Populated when
-        # distributed loads are applied; used to evaluate exact internal forces
-        # along the span.
+        # Local distributed-load intensities [i-end, j-end], in kips per inch,
+        # in the member's major (local y) and minor (local z) bending planes.
+        # Populated when distributed loads are applied; used to evaluate exact
+        # internal forces along the span.
         self.w_major = [0.0, 0.0]
         self.w_minor = [0.0, 0.0]
         # calculate the member length based on the node coordinates
@@ -139,10 +140,10 @@ class SubMember():
         Returns:
             float: Bending moment in kip-inches.
         """
-        l = self.length*12
+        l = self.length
         m1 = self.results['major axis moments'][0]
         v1 = self.results['shear'][0]
-        w1, w2 = self.w_major[0]/12, self.w_major[1]/12
+        w1, w2 = self.w_major
         return m1 - v1*x - w1*x**2/2 - (w2 - w1)*x**3/(6*l)
 
     def shear_major(self, x: float) -> float:
@@ -154,9 +155,9 @@ class SubMember():
         Returns:
             float: Shear force in kips.
         """
-        l = self.length*12
+        l = self.length
         v1 = self.results['shear'][0]
-        w1, w2 = self.w_major[0]/12, self.w_major[1]/12
+        w1, w2 = self.w_major
         return v1 + w1*x + (w2 - w1)*x**2/(2*l)
 
     def moment_minor(self, x: float) -> float:
@@ -168,10 +169,10 @@ class SubMember():
         Returns:
             float: Bending moment in kip-inches.
         """
-        l = self.length*12
+        l = self.length
         m1 = self.results['minor axis moments'][0]
         v1 = self.results['transverse shear'][0]
-        w1, w2 = self.w_minor[0]/12, self.w_minor[1]/12
+        w1, w2 = self.w_minor
         return m1 + v1*x + w1*x**2/2 + (w2 - w1)*x**3/(6*l)
 
     def shear_minor(self, x: float) -> float:
@@ -183,9 +184,9 @@ class SubMember():
         Returns:
             float: Shear force in kips.
         """
-        l = self.length*12
+        l = self.length
         v1 = self.results['transverse shear'][0]
-        w1, w2 = self.w_minor[0]/12, self.w_minor[1]/12
+        w1, w2 = self.w_minor
         return v1 + w1*x + (w2 - w1)*x**2/(2*l)
 
     def force_extrema(self) -> dict[str, tuple[float, float]]:
@@ -199,7 +200,7 @@ class SubMember():
         Returns:
             dict[str, tuple[float, float]]: Mapping of result key to (max, min).
         """
-        l = self.length*12
+        l = self.length
 
         def roots(a: float, b: float, c: float) -> list[float]:
             # Real roots of a*x^2 + b*x + c = 0 falling strictly within (0, L).
@@ -215,8 +216,8 @@ class SubMember():
                     candidates.append((-b - sq)/(2*a))
             return [x for x in candidates if 0 < x < l]
 
-        wy1, wy2 = self.w_major[0]/12, self.w_major[1]/12
-        wz1, wz2 = self.w_minor[0]/12, self.w_minor[1]/12
+        wy1, wy2 = self.w_major
+        wz1, wz2 = self.w_minor
         vy1 = self.results['shear'][0]
         vz1 = self.results['transverse shear'][0]
 
@@ -302,10 +303,10 @@ class SubMember():
         # dy = jy - iy (this does not appear to be used)
         dz = jz - iz
 
-        # Check if the member is oriented vertically and, if so, offset
-        # the member nodes by one unit in the negative global x
-        # direction to define the local x-y plane.
-        if (abs(dx) < 0.001 and abs(dz) < 0.001):
+        # Check if the member is oriented vertically and, if so, offset the
+        # member nodes by one unit in the negative global x direction to
+        # define the local x-y plane.
+        if (abs(dx) < VERTICAL_TOLERANCE and abs(dz) < VERTICAL_TOLERANCE):
             i_offset = np.array([ix-1, iy, iz])
             j_offset = np.array([jx-1, jy, jz])
 
@@ -354,8 +355,7 @@ class SubMember():
         return (transformation_matrix)
 
     def build_stiffness_matrix(self, E: float, Izz: float, Iyy: float, A: float, G: float, J: float, l: float) -> np.ndarray:
-        # Convert units automatically in the future (based on units passed).
-        l = float(l*12)
+        l = float(l)
         # beam element (fixed at i and j nodes)
         return np.array(
             [
@@ -556,7 +556,7 @@ class SubMember():
         # define section properties as local variables for readability
         A = self.A
         Ip = self.Ixx + self.Iyy
-        L = float(self.length*12)
+        L = float(self.length)
 
         # define first-order results as local variables for readability
         Fx2 = self.results['axial'][1]

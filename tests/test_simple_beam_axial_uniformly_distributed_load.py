@@ -4,9 +4,9 @@ from OpenSTRAN.Model import Model
 from OpenSTRAN.Database.Shape import Shape
 
 
-@pytest.mark.parametrize("L", [4.75, 7.25, 10., 17.33, 26.], scope="class")
+@pytest.mark.parametrize("L", [57., 87., 120., 207.96, 312.], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16", "L6X6X1/2"], scope="class")
-@pytest.mark.parametrize("w", [1.25, 2.6, 5.3], scope="class")
+@pytest.mark.parametrize("w", [1.25/12, 2.6/12, 5.3/12], scope="class")
 @pytest.mark.parametrize("direction", ["X", "x"], scope="class")
 class TestSimpleBeam:
     @pytest.fixture(autouse=True, scope="class")
@@ -41,10 +41,8 @@ class TestSimpleBeam:
         assert self.test_model.Rx_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, L: float):
-        l = L * 12  # ft -> in
-        w = w / 12  # klf -> kli
         # elongation at the roller end
-        expected = w * l ** 2 / (2 * self.E * self.shape.A)
+        expected = w * L ** 2 / (2 * self.E * self.shape.A)
         assert self.test_model.Ux_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float):

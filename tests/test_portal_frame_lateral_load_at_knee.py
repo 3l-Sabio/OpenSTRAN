@@ -19,8 +19,8 @@ from OpenSTRAN.Database.Shape import Shape
 # The split of the horizontal reaction (P / 2 at each base), the knee moment
 # (P * h / 2) and the sway come from formulas that simplify the axial
 # shortening of the members, so they are compared with a tolerance of 1%.
-@pytest.mark.parametrize("h", [10., 15.], scope="class")
-@pytest.mark.parametrize("L", [12., 20., 30.], scope="class")
+@pytest.mark.parametrize("h", [120., 180.], scope="class")
+@pytest.mark.parametrize("L", [144., 240., 360.], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
 @pytest.mark.parametrize("P", [7.5], scope="class")
 class TestPortalFrame:
@@ -57,7 +57,7 @@ class TestPortalFrame:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, P: float, h: float):
-        expected = P * h / 2 * 12  # at each knee, kip-ft -> kip-in
+        expected = P * h / 2  # at each knee
         assert self.test_model.Mzz_max == pytest.approx(expected, rel=1e-2)
 
     def test_max_shear(self, P: float, h: float, L: float):
@@ -75,15 +75,13 @@ class TestPortalFrame:
         assert self.test_model.Ry_max == pytest.approx(expected)
 
     def test_max_deflection(self, P: float, h: float, L: float):
-        h = h * 12  # ft -> in
-        l = L * 12  # ft -> in
         ei = self.E * self.shape.Ix
         ea = self.E * self.shape.A
         # sway of the loaded knee: bending of the beam and the columns, the
         # tilt from one column shortening while the other stretches, and half
         # of the shortening of the beam
-        expected = P * h ** 2 * l / (12 * ei) + P * h ** 3 / (6 * ei) \
-            + 2 * P * h ** 3 / (ea * l ** 2) + P * l / (4 * ea)
+        expected = P * h ** 2 * L / (12 * ei) + P * h ** 3 / (6 * ei) \
+            + 2 * P * h ** 3 / (ea * L ** 2) + P * L / (4 * ea)
         assert self.test_model.Ux_max == pytest.approx(expected, rel=1e-2)
 
     def test_node_reaction_1(self, P: float, h: float, L: float):

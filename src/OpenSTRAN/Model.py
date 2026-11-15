@@ -270,16 +270,20 @@ class Model():
         Displays all reaction forces (Rx, Ry, Rz) and reaction moments (Mx, My, Mz)
         at all restrained support nodes in a formatted table.
         """
+        def tidy(value: float) -> float:
+            # Round first so a tiny negative value does not print as "-0.00".
+            return round(value, 2) + 0.0
+
         print('Nodal Reactions')
         for node in self.nodes.nodes.values():
             if node.mesh_node is not True:
                 print(f'\tNode {node.node_ID}:')
-                print(f'\t\tRx = {node.Rx:.2f} kips')
-                print(f'\t\tRy = {node.Ry:.2f} kips')
-                print(f'\t\tRz = {node.Rz:.2f} kips')
-                print(f'\t\tMx = {node.Mx:.2f} kip-ft')
-                print(f'\t\tMy = {node.My:.2f} kip-ft')
-                print(f'\t\tMz = {node.Mz:.2f} kip-ft')
+                print(f'\t\tRx = {tidy(node.Rx):.2f} kips')
+                print(f'\t\tRy = {tidy(node.Ry):.2f} kips')
+                print(f'\t\tRz = {tidy(node.Rz):.2f} kips')
+                print(f'\t\tMx = {tidy(node.Rmx):.2f} kip-in')
+                print(f'\t\tMy = {tidy(node.Rmy):.2f} kip-in')
+                print(f'\t\tMz = {tidy(node.Rmz):.2f} kip-in')
 
     def max_deflection(self) -> None:
         Ux: list[float] = []

@@ -33,8 +33,8 @@ class Members():
         self,
         node_i: Node,
         node_j: Node,
-        i_release: list[int] = [0, 0, 0, 0, 0, 0],
-        j_release: list[int] = [0, 0, 0, 0, 0, 0],
+        i_release: list[int] | None = None,
+        j_release: list[int] | None = None,
         E: float = 29000.0,
         Ixx: float = 88.6,
         Iyy: float = 2.36,
@@ -42,7 +42,7 @@ class Members():
         G: float = 12000.0,
         J: float = 0.0704,
         mesh: int = 50,
-        bracing: str = "continuous",
+        bracing: str | list[float] = "continuous",
         shape: Shape | None = None,
     ) -> Member:
         """Add a member to the model.
@@ -50,10 +50,10 @@ class Members():
         Args:
             node_i (Node): Start node of the member.
             node_j (Node): End node of the member.
-            i_release (list[int], optional): start node end releases.
-                Defaults to False.
-            j_release (list[int], optional): end node end releases.
-                Defaults to False.
+            i_release (list[int] | None, optional): start node end releases
+                as six 0/1 flags. Defaults to None, which releases nothing.
+            j_release (list[int] | None, optional): end node end releases
+                as six 0/1 flags. Defaults to None, which releases nothing.
             E (float, optional): Young's modulus in ksi. Defaults to 29000.0.
             Ixx (float, optional): Moment of inertia about the strong axis in
                 in^4. Defaults to 88.6.
@@ -66,8 +66,9 @@ class Members():
                 0.0704.
             mesh (int, optional): Number of discretizations per member. Defaults
                 to 50.
-            bracing (str, optional): Bracing type (e.g., "continuous"). Defaults
-                to "continuous".
+            bracing (str | list[float], optional): Bracing type (e.g.,
+                "continuous") or a list of brace locations along the span in
+                inches. Defaults to "continuous".
             shape (Shape | None, optional): Shape class with section properties.
                 Defaults to None.
 
@@ -80,6 +81,11 @@ class Members():
             >>> M2 = frame.members.add_member(N2, N3)
         """
         self.count += 1
+
+        i_release = [0, 0, 0, 0, 0, 0] if i_release is None \
+            else list(i_release)
+        j_release = [0, 0, 0, 0, 0, 0] if j_release is None \
+            else list(j_release)
 
         if isinstance(shape, Shape):
             Ixx = shape.Ix

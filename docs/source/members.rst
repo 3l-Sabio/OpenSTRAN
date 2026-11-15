@@ -43,9 +43,9 @@ Adding Members
 
    # Create nodes first
    N1 = model.nodes.add_node(0, 0, 0)
-   N2 = model.nodes.add_node(10, 0, 0)
-   N3 = model.nodes.add_node(10, 8, 0)
-   N4 = model.nodes.add_node(0, 8, 0)
+   N2 = model.nodes.add_node(120, 0, 0)
+   N3 = model.nodes.add_node(120, 96, 0)
+   N4 = model.nodes.add_node(0, 96, 0)
 
    # Add members between nodes
    M1 = members.add_member(N1, N2)  # Base member
@@ -147,8 +147,8 @@ Specify bracing conditions for buckling analysis:
    M3 = members.add_member(N1, N2, bracing="third")      # At third points
    M4 = members.add_member(N1, N2, bracing="midspan")    # At midspan
 
-   # Custom bracing locations (0-1 scale)
-   M5 = members.add_member(N1, N2, bracing=[0.2, 0.4, 0.6, 0.8])
+   # Custom bracing locations (distance from the start node in inches)
+   M5 = members.add_member(N1, N2, bracing=[24, 48, 72, 96])
 
 Iterating Through Members
 -------------------------
@@ -228,7 +228,7 @@ Performance Considerations
 Units
 -----
 
-* **Length**: feet (ft) for node coordinates, inches (in) for member properties
+* **Length**: inches (in) for node coordinates, brace locations, member properties and member length
 * **Force/Stress**: kips/ksi
 * **Area**: in²
 * **Moments of Inertia**: in⁴

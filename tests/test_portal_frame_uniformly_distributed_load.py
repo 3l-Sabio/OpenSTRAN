@@ -22,10 +22,10 @@ from OpenSTRAN.Database.Shape import Shape
 #
 # OpenSTRAN includes axial shortening, so values built on H are compared with
 # a tolerance of 1%.
-@pytest.mark.parametrize("h", [10., 15.], scope="class")
-@pytest.mark.parametrize("L", [12., 20., 30.], scope="class")
+@pytest.mark.parametrize("h", [120., 180.], scope="class")
+@pytest.mark.parametrize("L", [144., 240., 360.], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
-@pytest.mark.parametrize("w", [2.6], scope="class")
+@pytest.mark.parametrize("w", [2.6/12], scope="class")
 class TestPortalFrame:
     @pytest.fixture(autouse=True, scope="class")
     @classmethod
@@ -68,7 +68,7 @@ class TestPortalFrame:
     def test_max_moment(self, w: float, h: float, L: float):
         knee = self.thrust(w, h, L) * h      # at the top of each column
         midspan = w * L ** 2 / 8 - knee      # at the center of the beam
-        expected = max(knee, midspan) * 12   # kip-ft -> kip-in
+        expected = max(knee, midspan)
         assert self.test_model.Mzz_max == pytest.approx(expected, rel=1e-2)
 
     def test_max_shear(self, w: float, L: float):
@@ -84,15 +84,13 @@ class TestPortalFrame:
         assert self.test_model.Ry_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, h: float, L: float):
-        knee = self.thrust(w, h, L) * h * 12  # kip-in
+        knee = self.thrust(w, h, L) * h       # kip-in
         column_load = w * L / 2               # kips
-        l = L * 12  # ft -> in
-        w = w / 12  # klf -> kli
         ei = self.E * self.shape.Ix
         # midspan of the beam: a simple span deflection, reduced by the end
         # moments at the knees, plus the shortening of the columns
-        expected = 5 * w * l ** 4 / (384 * ei) - knee * l ** 2 / (8 * ei) \
-            + column_load * h * 12 / (self.E * self.shape.A)
+        expected = 5 * w * L ** 4 / (384 * ei) - knee * L ** 2 / (8 * ei) \
+            + column_load * h / (self.E * self.shape.A)
         assert self.test_model.Uy_max == pytest.approx(expected, rel=1e-2)
 
     def test_node_reaction_1(self, w: float, L: float):

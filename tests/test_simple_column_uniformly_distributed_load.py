@@ -4,9 +4,9 @@ from OpenSTRAN.Model import Model
 from OpenSTRAN.Database.Shape import Shape
 
 
-@pytest.mark.parametrize("L", [7.25, 10., 17.33], scope="class")
+@pytest.mark.parametrize("L", [87., 120., 207.96], scope="class")
 @pytest.mark.parametrize("s", ["W12X14", "HSS6X4X3/16"], scope="class")
-@pytest.mark.parametrize("w", [1.25, 5.3], scope="class")
+@pytest.mark.parametrize("w", [1.25/12, 5.3/12], scope="class")
 @pytest.mark.parametrize("axis", ["X", "Z"], scope="class")
 @pytest.mark.parametrize("mesh", [2, 10, 50], scope="class")
 class TestSimpleColumn:
@@ -35,7 +35,7 @@ class TestSimpleColumn:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, w: float, L: float, axis: str):
-        expected = w * L ** 2 / 8 * 12   # kip-ft -> kip-in
+        expected = w * L ** 2 / 8
         if axis == "X":
             assert self.test_model.Mzz_max == pytest.approx(expected)
         else:
@@ -56,13 +56,11 @@ class TestSimpleColumn:
             assert self.test_model.Rz_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, L: float, axis: str):
-        l = L * 12  # ft -> in
-        w = w / 12  # klf -> kli
         if axis == "X":
-            expected = 5 * w * l ** 4 / (384 * self.E * self.shape.Ix)
+            expected = 5 * w * L ** 4 / (384 * self.E * self.shape.Ix)
             assert self.test_model.Ux_max == pytest.approx(expected, rel=1e-3)
         else:
-            expected = 5 * w * l ** 4 / (384 * self.E * self.shape.Iy)
+            expected = 5 * w * L ** 4 / (384 * self.E * self.shape.Iy)
             assert self.test_model.Uz_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float, axis: str):

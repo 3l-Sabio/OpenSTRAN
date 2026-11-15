@@ -18,22 +18,20 @@ MOVING_LOADS = [
 def max_deflection(w: float, L: float, a: float, b: float, E: float, I: float) -> float:
     """Max deflection (in) of a simple beam under a partial uniform load.
 
-    w in kip/ft, 
-    L in ft, 
+    w in kip/in, 
+    L in inches, 
     a = load start as % of span, and 
     b = load length as % of span,
     E in ksi, 
     I in in^4.
     """
-    w = w / 12
-    l = L * 12
-    a = l * a / 100
-    b = l * b / 100
-    c = l - a - b
+    a = L * a / 100
+    b = L * b / 100
+    c = L - a - b
     d = a + b
-    R1 = w * b * (2 * c + b) / (2 * l)
+    R1 = w * b * (2 * c + b) / (2 * L)
     R2 = w * b - R1
-    C1 = (R1 * l**3 / 6 - w / 24 * ((b + c)**4 - c**4)) / l
+    C1 = (R1 * L**3 / 6 - w / 24 * ((b + c)**4 - c**4)) / L
 
     def y(x: float) -> float:
         return (-R1 * x**3 / 6 + w / 24 * max(x - a, 0)**4
@@ -48,17 +46,17 @@ def max_deflection(w: float, L: float, a: float, b: float, E: float, I: float) -
     for u in np.roots([w / 6, -R1 / 2, -R1 * a, C1 - R1 * a**2 / 2]):
         if abs(u.imag) < 1e-9 and -1e-9 <= u.real <= b + 1e-9:
             candidates.append(a + u.real)
-    C1_right = R1 * l**2 / 2 - w / 6 * ((b + c)**3 - c**3) - C1
-    x_right = l - np.sqrt(2 * C1_right / R2)
+    C1_right = R1 * L**2 / 2 - w / 6 * ((b + c)**3 - c**3) - C1
+    x_right = L - np.sqrt(2 * C1_right / R2)
     if x_right >= d:
         candidates.append(x_right)
     return max(y(x) for x in candidates)
 
 
-@pytest.mark.parametrize("L", [10.], scope="class")
+@pytest.mark.parametrize("L", [120.], scope="class")
 @pytest.mark.parametrize("a, b", MOVING_LOADS, scope="class")
 @pytest.mark.parametrize("s", ["W12X14"], scope="class")
-@pytest.mark.parametrize("w", [1.], scope="class")
+@pytest.mark.parametrize("w", [1./12], scope="class")
 @pytest.mark.parametrize("axis", ["Y", "Z"], scope="class")
 class TestSimpleBeam:
     @pytest.fixture(autouse=True, scope="class")
@@ -86,20 +84,20 @@ class TestSimpleBeam:
         cls.test_model.max_deflection()
 
     def test_max_moment(self, w: float, L: float, a: float, b: float, axis: str):
-        a_len = L * a / 100          # ft, left support to start of load
-        b_len = L * b / 100          # ft, loaded length
-        c_len = L - a_len - b_len    # ft, end of load to right support
+        a_len = L * a / 100          # in, left support to start of load
+        b_len = L * b / 100          # in, loaded length
+        c_len = L - a_len - b_len    # in, end of load to right support
         r = w * b_len / (2 * L) * (2 * c_len + b_len)
-        expected = r * (a_len + r / (2 * w)) * 12   # kip-ft -> kip-in
+        expected = r * (a_len + r / (2 * w))
         if axis == "Y":
             assert self.test_model.Mzz_max == pytest.approx(expected)
         else:
             assert self.test_model.Myy_max == pytest.approx(expected)
 
     def test_max_shear(self, w: float, L: float, a: float, b: float, axis: str):
-        a_len = L * a / 100          # ft, left support to start of load
-        b_len = L * b / 100          # ft, loaded length
-        c_len = L - a_len - b_len    # ft, end of load to right support
+        a_len = L * a / 100          # in, left support to start of load
+        b_len = L * b / 100          # in, loaded length
+        c_len = L - a_len - b_len    # in, end of load to right support
 
         if a_len < c_len:
             expected = w * b_len / (2 * L) * (2 * c_len + b_len)
@@ -112,9 +110,9 @@ class TestSimpleBeam:
             assert self.test_model.Vz_max == pytest.approx(expected)
 
     def test_max_reaction(self, w: float, L: float, a: float, b: float, axis: str):
-        a_len = L * a / 100          # ft, left support to start of load
-        b_len = L * b / 100          # ft, loaded length
-        c_len = L - a_len - b_len    # ft, end of load to right support
+        a_len = L * a / 100          # in, left support to start of load
+        b_len = L * b / 100          # in, loaded length
+        c_len = L - a_len - b_len    # in, end of load to right support
 
         if a_len < c_len:
             expected = w * b_len / (2 * L) * (2 * c_len + b_len)
@@ -135,9 +133,9 @@ class TestSimpleBeam:
             assert self.test_model.Uz_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float, a: float, b: float, axis: str):
-        a_len = L * a / 100          # ft, left support to start of load
-        b_len = L * b / 100          # ft, loaded length
-        c_len = L - a_len - b_len    # ft, end of load to right support
+        a_len = L * a / 100          # in, left support to start of load
+        b_len = L * b / 100          # in, loaded length
+        c_len = L - a_len - b_len    # in, end of load to right support
         expected = w * b_len / (2 * L) * (2 * c_len + b_len)
 
         if axis == "Y":
@@ -146,8 +144,8 @@ class TestSimpleBeam:
             assert self.N1.Rz == pytest.approx(expected)
 
     def test_node_reaction_2(self, w: float, L: float, a: float, b: float, axis: str):
-        a_len = L * a / 100          # ft, left support to start of load
-        b_len = L * b / 100          # ft, loaded length
+        a_len = L * a / 100          # in, left support to start of load
+        b_len = L * b / 100          # in, loaded length
         expected = w * b_len / (2 * L) * (2 * a_len + b_len)
 
         if axis == "Y":

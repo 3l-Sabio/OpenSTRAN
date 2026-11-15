@@ -3,6 +3,12 @@ from .Node import Node
 from .Submember import SubMember
 from .Database.Shape import Shape
 from .Coordinates import Coordinate
+from .Units import (
+    COLLINEAR_TOLERANCE,
+    CONTINUOUS_BRACE_SPACING,
+    LOAD_OVERLAP_TOLERANCE,
+    VERTICAL_TOLERANCE,
+)
 import numpy as np
 from math import sqrt
 
@@ -34,9 +40,9 @@ class Member():
         mesh (int): Number of discretizations (submembers) along the member span.
         bracing (str | list[float]): Lateral bracing configuration. Can be
             'continuous', 'quarter', 'third', 'midspan', or a list of bracing
-            locations along the span.
+            locations along the span in inches.
         shape (str | Shape | None): Cross-sectional shape identifier.
-        length (float): Calculated length of the member (in).
+        length (float): Calculated length of the member in inches.
         Cb (float): Lateral-torsional buckling coefficient.
         count (int): Counter for submember creation.
         submembers (dict[int, SubMember]): Dictionary of submembers indexed by
@@ -189,7 +195,7 @@ class Member():
         if L2 == 0:
             return False
         # Collinearity: the cross product of the member vector and (k - i) is ~0.
-        if not np.allclose(np.cross(v, w), 0.0, atol=1e-6):
+        if not np.allclose(np.cross(v, w), 0.0, atol=COLLINEAR_TOLERANCE):
             return False
         # Parametric position along the member must fall within [0, 1].
         t = float(np.dot(w, v)/L2)
@@ -209,8 +215,9 @@ class Member():
         j = self.node_j.coordinates
         dx = j.x - i.x
         dz = j.z - i.z
-        # Offset to define the local x-y plane; vertical members are special-cased.
-        if abs(dx) < 0.001 and abs(dz) < 0.001:
+        # Offset to define the local x-y plane; vertical members are
+        # special-cased.
+        if abs(dx) < VERTICAL_TOLERANCE and abs(dz) < VERTICAL_TOLERANCE:
             i_offset = np.array([i.x-1, i.y, i.z])
             j_offset = np.array([j.x-1, j.y, j.z])
         else:
@@ -377,7 +384,9 @@ class Member():
             return (x, y, z)
 
         if self.bracing == 'continuous':
-            bracePoints = discretize(self.length, int(f'{self.length:.0f}'))
+            # Continuous bracing is taken as evenly spaced brace points.
+            bracePoints = discretize(
+                self.length, round(self.length/CONTINUOUS_BRACE_SPACING))
         elif self.bracing == 'quarter':
             bracePoints = discretize(self.length, 4)
         elif self.bracing == 'third':
@@ -532,8 +541,10 @@ class Member():
         :meth:`_apply_distributed_load`.
 
         Args:
-            Mag1 (float): Start magnitude of the distributed load in kips.
-            Mag2 (float): End magnitude of the distributed load in kips.
+            Mag1 (float): Start magnitude of the distributed load in kips per
+                inch.
+            Mag2 (float): End magnitude of the distributed load in kips per
+                inch.
             direction (str): Load direction - global ('X', 'Y', 'Z') or local
                 ('x', 'y', 'z').
             loc1 (float): Start location of load along member span as percentage
@@ -555,8 +566,10 @@ class Member():
         :meth:`prepare` after the member has been meshed.
 
         Args:
-            Mag1 (float): Start magnitude of the distributed load in kips.
-            Mag2 (float): End magnitude of the distributed load in kips.
+            Mag1 (float): Start magnitude of the distributed load in kips per
+                inch.
+            Mag2 (float): End magnitude of the distributed load in kips per
+                inch.
             direction (str): Load direction - global ('X', 'Y', 'Z') or local
                 ('x', 'y', 'z').
             loc1 (float): Start location of load along member span as percentage
@@ -577,6 +590,9 @@ class Member():
         # Instantiate a variable to measure distance along the member
         l1 = 0
 
+        # A submember that the load barely overlaps is treated as unloaded.
+        tolerance = LOAD_OVERLAP_TOLERANCE
+
         # Iterate through the member's submembers
         for _, submbr in self.submembers.items():
             # Calculate the end location of the current submember
@@ -585,7 +601,7 @@ class Member():
             # Rotation matrix for the current submember.
             local_to_global = submbr.rotation_matrix[0:3, 0:3]
 
-            if l2 <= loc1 + 1e-9 or l1 >= loc2 - 1e-9:
+            if l2 <= loc1 + tolerance or l1 >= loc2 - tolerance:
                 # The load does not land on the current submember
                 # Continue to the next iteration
                 l1 = l2
@@ -716,10 +732,6 @@ class Member():
             f_local[5, 0] = a*lw*vm+(lw**2*(2*v2+v1))/6 - \
                 Mj-vj*l  # major axis moment
 
-            # Lengths above are in feet; convert the moments from kip-ft to
-            # kip-in to match the stiffness matrix.
-            f_local[[4, 5, 10, 11], 0] *= 12
-
             # The actions above assume both ends of the submember are fixed.
             # Condense the force vector the same way SubMember.pin condenses
             # the stiffness matrix, using the stiffness of the submember before
@@ -802,16 +814,16 @@ class Member():
             tuple[SubMember, float]: The submember containing the location and the
             distance (in inches) from that submember's i-node.
         """
-        target = self.length*(location/100)*12  # inches from node i
+        target = self.length*(location/100)  # inches from node i
         run = 0.0
         submbr = None
         for submbr in self.submembers.values():
-            sub_length = submbr.length*12
+            sub_length = submbr.length
             if run - 1e-6 <= target <= run + sub_length + 1e-6:
                 return submbr, min(max(target - run, 0.0), sub_length)
             run += sub_length
         # Location is beyond the last submember; clamp to its far end.
-        return submbr, submbr.length*12
+        return submbr, submbr.length
 
     def moment(self, location: float, axis: str = 'major') -> float:
         """Internal bending moment at an arbitrary location along the member.
