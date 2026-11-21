@@ -40,9 +40,11 @@ OpenSTRAN allows for the creation of simple two-dimensional frame elements and c
 * 3D truss :heavy_check_mark:
 * 2D frame :heavy_check_mark:
 * 3D space frame :heavy_check_mark:
+* Second-order (P-Delta) elastic analysis :heavy_check_mark:
+* Elastic critical load factor :heavy_check_mark:
 
 ## Limitations
-* First order elastic analysis only.
+* Elastic analysis only. Second-order analysis is P-Delta on the undeformed geometry; large displacements are not modeled.
 * Shear and torsional deformations are not considered.
 * Does not take advantage of matrix sparseness or bandedness.
 * Does not convert units. See [Units](#units).
