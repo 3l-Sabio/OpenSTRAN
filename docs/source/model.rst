@@ -147,6 +147,86 @@ Use custom material properties instead of standard shapes:
 
    M1 = model.members.add_member(N1, N2, E=E, A=A, Ixx=Ixx, Iyy=Iyy, G=G, J=J)
 
+Second-Order Analysis
+^^^^^^^^^^^^^^^^^^^^^
+
+A second-order (P-Delta) analysis includes the effect of axial forces on
+member stiffness. It starts from the first-order solution. Equilibrium is
+formulated on the undeformed geometry, and each iteration solves
+``[Ke + Kg(N)] {U} = {F}``, the elastic plus geometric stiffness with the
+axial forces N of the previous iteration.
+
+The second-order analysis uses the load control method of McGuire et al.
+(Equations 12.11 and 12.16, as a single load increment) with the geometry
+held fixed. The iteration stops when the unbalanced load is below ``tolerance``
+times the applied loads.
+
+.. code-block:: python
+
+   model.solve(second_order=True)
+
+   # Optional convergence settings (defaults shown)
+   model.solve(second_order=True, tolerance=1e-8, max_iterations=50)
+
+   # Iterations used by the last second-order analysis
+   print(model.solver.iterations)
+
+Results are stored in the same node and member fields as a first-order
+analysis. Member end forces include the geometric stiffness, and the
+moments along each submember (``Member.moment()`` and the maxima found by
+``maxMbrForces()``) include the moment of the axial force about the
+deflected axis.
+
+A ``RuntimeError`` is raised if the iteration does not converge, or if the
+tangent stiffness stops being positive definite. The second case means the
+loads are most likely at or above the second-order limit load. That limit
+can be lower than the elastic critical load below, because the axial forces
+change as the structure deflects: the portal frame of McGuire et al.,
+Example 9.6, modeled with two-element columns and one-element girders, has a
+critical load factor of 2.20, but its P-Delta analysis fails between 2.06
+and 2.07 times the loads.
+
+A ``ValueError`` is raised if the elastic stiffness is singular. The error 
+names a node that has no stiffness against some of its unrestrained degrees
+of freedom, for example the rotation of a joint at which every member is 
+released, or reports that the structure is a unstable. 
+
+If a ``ValueError`` is raised, a first-order analysis still solves such a model
+with a ``LinAlgWarning``. After such an error, or if the analysis is interrupted, 
+the model holds the first-order solution.
+
+Elastic Critical Load
+^^^^^^^^^^^^^^^^^^^^^
+
+The elastic critical load factor is the smallest factor by which the applied
+loads can be multiplied before the structure buckles. It solves the
+eigenproblem ``[Ke + lambda Kg] {d} = 0``, with the geometric stiffness
+``Kg`` formed from the first-order axial forces:
+
+.. code-block:: python
+
+   factor = model.critical_load_factor()
+   print(f"The structure buckles at {factor:.2f} times the applied loads")
+
+``Kg`` here leaves out the axial terms of the geometric stiffness, which
+only reduce axial stiffness and would otherwise give a meaningless factor
+``EA/|N|`` when no bending or twisting mode is free. Axial forces at the
+level of rounding error are treated as zero. A ``ValueError`` is raised if
+the applied loads put no member in compression, if every member in
+compression is restrained against bending and twisting, or if the elastic
+stiffness is singular, as above. The model is left holding
+the first-order solution under the applied loads.
+
+Known Issue: Released Members
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Second-order results and critical loads near an end release are
+approximate when a member is released at one end only, or when the released
+submember carries a distributed load.
+
+Use several submembers (the default mesh is 50) for released members in
+second-order and critical load analyses.
+
 Result Post-Processing
 ----------------------
 
@@ -204,7 +284,11 @@ OpenSTRAN does not convert units. Units must be entered per the reference unit t
 Limitations
 -----------
 
-* First-order elastic analysis only
+* Elastic analysis only; second-order analysis is P-Delta on the undeformed
+  geometry (no large displacements)
+* Second-order results near a release are approximate with a coarse mesh
+  when the member is released at one end only or carries a distributed
+  load (see the known issue above)
 * Neglects shear and torsional deformations
 * No matrix sparseness optimization
 * No unit conversion; inputs are in inches and kips

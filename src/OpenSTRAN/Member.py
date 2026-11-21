@@ -733,23 +733,9 @@ class Member():
                 Mj-vj*l  # major axis moment
 
             # The actions above assume both ends of the submember are fixed.
-            # Condense the force vector the same way SubMember.pin condenses
-            # the stiffness matrix, using the stiffness of the submember before
-            # its releases were applied.
-            releases = np.array(
-                [*submbr.i_release, *submbr.j_release], dtype=float)
-            if releases.any():
-                K = submbr.build_stiffness_matrix(
-                    submbr.E,
-                    submbr.Ixx,
-                    submbr.Iyy,
-                    submbr.A,
-                    submbr.G,
-                    submbr.J,
-                    submbr.length
-                )
-                R = np.diag(releases)
-                f_local -= K @ R @ np.linalg.pinv(R @ K @ R) @ R @ f_local
+            # Condense the released ends out, as SubMember.pin condenses the
+            # stiffness matrix.
+            f_local = submbr.pin_vector(f_local)
 
             # Transform the local force vector to the global reference plane
             f_global: np.ndarray = submbr.rotation_matrix @ f_local
@@ -859,26 +845,3 @@ class Member():
         if axis == 'minor':
             return submbr.shear_minor(x)
         return submbr.shear_major(x)
-
-    def second_order(self) -> None:
-        """
-        Apply second-order (P-delta) effects to account for geometric nonlinearity.
-
-        Constructs and adds geometric stiffness matrices to all submembers to account
-        for second-order effects including P-delta moments. This modifies the local
-        stiffness matrix of each submember by including the effects of axial forces
-        on bending behavior.
-
-        :returns: None
-        :rtype: None
-        """
-        for submbr in self.submembers.values():
-            # Calculate the submember local geometric stiffness matrix
-            KG = submbr.build_geometric_stiffness_matrix()
-
-            # Redefine the submember local stiffness matrix
-            submbr.Kl += KG
-
-            # Calculate the submember global geometric stiffness matrix
-            submbr.KG = submbr.transformation_matrix.T.dot(
-                submbr.Kl).dot(submbr.transformation_matrix)
