@@ -39,7 +39,12 @@ class Model():
         self.members = Members(self.nodes)
         self.solver = Solver()
 
-    def solve(self) -> None:
+    def solve(
+        self,
+        second_order: bool = False,
+        tolerance: float = 1e-8,
+        max_iterations: int = 50
+    ) -> None:
         """Solve the structural system and compute reactions and member forces.
 
         This method performs a complete finite element analysis including:
@@ -47,16 +52,83 @@ class Model():
         * Assembly and solution of the global stiffness system
         * Calculation of nodal reactions at restrained DOFs
         * Determination of member forces and local extrema
-        """
-        # mesh each member and apply its deferred loads. Meshing is
-        # deferred to this point so that nodes created by loads are included
-        # in the member mesh.
-        for member in self.members.members.values():
-            member.prepare()
 
-        self.solver.solve(self.nodes, self.members)
+        With ``second_order=True`` the analysis includes the effect of axial
+        forces on stiffness (P-Delta). Starting from the first-order
+        solution, it iterates on the axial forces (a fixed-point iteration),
+        using the tangent stiffness (elastic plus geometric) of the current
+        axial forces until the unbalanced load is below ``tolerance`` times
+        the applied loads. Equilibrium is formulated on the undeformed
+        geometry. The bowing of a member between its ends (P-delta) is
+        captured only if the member is meshed into several submembers. If
+        the analysis fails or is interrupted, the model is left holding the
+        first-order solution.
+
+        Args:
+            second_order (bool, optional): Run a second-order (P-Delta)
+                analysis. Defaults to False.
+            tolerance (float, optional): Convergence tolerance of a
+                second-order analysis: the largest norm of the unbalanced
+                load, relative to the norm of the applied loads. Defaults to
+                1e-8.
+            max_iterations (int, optional): Maximum number of iterations of a
+                second-order analysis. Defaults to 50.
+
+        Raises:
+            RuntimeError: If a second-order analysis does not converge, or the
+                loads are most likely at or above the second-order limit load.
+            ValueError: If a second-order analysis finds that the elastic
+                stiffness is singular.
+        """
+        self._prepare()
+        try:
+            self.solver.solve(
+                self.nodes, self.members, second_order=second_order,
+                tolerance=tolerance, max_iterations=max_iterations)
+        finally:
+            # A failed second-order analysis leaves the first-order solution;
+            # a failed first-order analysis leaves no results.
+            if self.solver.has_results:
+                self._find_maxima()
+
+    def critical_load_factor(self) -> float:
+        """Elastic critical load factor of the applied loads.
+
+        Returns the smallest positive factor lambda for which lambda times the
+        applied loads is an elastic critical (buckling) load, from the
+        eigenproblem ``[Ke + lambda Kg] {d} = 0`` with the geometric
+        stiffness Kg formed from the first-order axial forces. The model is
+        left holding the first-order solution under the applied loads.
+
+        Returns:
+            float: The elastic critical load factor.
+
+        Raises:
+            ValueError: If the applied loads put no member in compression, if
+                every member in compression is restrained against bending and
+                twisting, or if the elastic stiffness is singular.
+        """
+        self._prepare()
+        try:
+            return self.solver.critical_load_factor(self.nodes, self.members)
+        finally:
+            # The model holds the first-order solution, unless that failed.
+            if self.solver.has_results:
+                self._find_maxima()
+
+    def _find_maxima(self) -> None:
+        """Update the maximum reactions and member forces."""
         self.maxReactions()
         self.maxMbrForces()
+
+    def _prepare(self) -> None:
+        """Mesh each member and apply its deferred loads.
+
+        Meshing is deferred to this point so that nodes created by loads are
+        included in the member mesh.
+        """
+        for member in self.members.members.values():
+            member.prepare()
 
     def maxReactions(self) -> None:
         """Calculate maximum reaction forces and moments at restrained nodes.
