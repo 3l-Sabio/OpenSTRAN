@@ -354,7 +354,7 @@ class Solver():
             mechanism = True
         if mechanism:
             raise ValueError(
-                "The elastic stiffness is singular: the structure is a "
+                "The elastic stiffness is singular: the structure is "
                 "unstable.")
 
     def _second_order(

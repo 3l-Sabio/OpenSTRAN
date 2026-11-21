@@ -432,11 +432,11 @@ def test_rotation_without_stiffness_about_an_inclined_axis_raises(
 
 @pytest.mark.filterwarnings("ignore::scipy.linalg.LinAlgWarning")
 @pytest.mark.parametrize("second_order", [False, True])
-def test_mechanism_raises(second_order: bool):
+def test_instability_raises(second_order: bool):
     # A pin-jointed frame of three bars, inclined so that the condensed
     # releases leave a rounding residue, sways freely. Every joint has
     # stiffness of its own, so only the factorization of the whole
-    # structure finds the mechanism.
+    # structure finds the instability.
     model = Model(plane='xy')
     a = model.nodes.add_node(0, 0, 0)
     b = model.nodes.add_node(30, L, 0)
@@ -453,7 +453,7 @@ def test_mechanism_raises(second_order: bool):
     b.add_load(-1.0, 'force', 'Y')
     c.add_load(-1.0, 'force', 'Y')
 
-    with pytest.raises(ValueError, match="mechanism"):
+    with pytest.raises(ValueError, match="unstable"):
         if second_order:
             model.solve(second_order=True)
         else:
