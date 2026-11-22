@@ -153,21 +153,3 @@ Nodal Reactions
 Maximum deflection: 0.0876 in
 Moment at midspan: -150.0 kip-in
 ```
-
-`model.solve()` returns the results of the analysis, which the model also keeps as `model.results`. They give each node's displacements and reactions (`results.node(N1).Ry`), each member's internal forces along its span (`results.member(M1).moment(50)`) and the largest values in the model (`results.Mzz_max`, `results.Uy_max`). They do not change when the model is solved again.
-
-**Changed after version 0.0.6.** Versions up to 0.0.6 stored results on the model, nodes and members. A script written for those versions can be updated as follows:
-
-| Up to 0.0.6 | Now |
-|---|---|
-| `model.solve()`, then `model.max_deflection()` | `results = model.solve()` |
-| `model.solver.solve(model.nodes, model.members)` | `results = model.solve()`; the solver now also takes the loads |
-| `model.Uy_max`, `model.Mzz_max`, `model.Ry_max` | `results.Uy_max`, `results.Mzz_max`, `results.Ry_max` |
-| `N1.Uy`, `N1.Ry` | `results.node(N1).Uy`, `results.node(N1).Ry` |
-| `M1.moment(50)`, `M1.shear(50)` | `results.member(M1).moment(50)`, `results.member(M1).shear(50)` |
-| `M1.calculate_Cb()` | `results.member(M1).calculate_Cb()` |
-| `M1.submembers[k].results['axial']` | `results.member(M1).submembers[k - 1].forces['axial']` |
-| `N1.Fx = 5.0` | `N1.add_load(5.0, 'force', 'X')` |
-| `N1.Fx = 8.0` to change the load | `model.loads.clear()`, then add every load again |
-
-`add_load` adds to the loads already on the node, where setting `N1.Fx` replaced its value. `model.loads.clear()` removes the loads of the whole model. `add_load` now needs the load type and the direction, and raises a `ValueError` for a type other than `'force'` or `'moment'` or a direction other than `'X'`, `'Y'` or `'Z'`; up to 0.0.6, a call that left them out or gave a lowercase direction added no load. The submembers of a member's results are a tuple counted from 0, while `M1.submembers` is still a dictionary counted from 1.
