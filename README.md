@@ -161,6 +161,7 @@ Moment at midspan: -150.0 kip-in
 | Up to 0.0.6 | Now |
 |---|---|
 | `model.solve()`, then `model.max_deflection()` | `results = model.solve()` |
+| `model.solver.solve(model.nodes, model.members)` | `results = model.solve()`; the solver now also takes the loads |
 | `model.Uy_max`, `model.Mzz_max`, `model.Ry_max` | `results.Uy_max`, `results.Mzz_max`, `results.Ry_max` |
 | `N1.Uy`, `N1.Ry` | `results.node(N1).Uy`, `results.node(N1).Ry` |
 | `M1.moment(50)`, `M1.shear(50)` | `results.member(M1).moment(50)`, `results.member(M1).shear(50)` |

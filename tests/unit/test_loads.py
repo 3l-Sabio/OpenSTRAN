@@ -9,7 +9,7 @@ import pytest
 
 from OpenSTRAN import Model
 from OpenSTRAN.Coordinates import Coordinate
-from OpenSTRAN.Loads import DistributedLoad, NodalLoad, PointLoad
+from OpenSTRAN.Loads import DistributedLoad, Loads, NodalLoad, PointLoad
 from OpenSTRAN.Node import Node
 
 L = 120.0     # in
@@ -25,13 +25,16 @@ def test_loads_are_recorded_as_given():
     base.restraint = [1, 1, 1, 1, 1, 1]
     member = model.members.add_member(base, tip, E=E, Ixx=I, Iyy=I, mesh=4)
 
-    tip.add_load(-P, 'force', 'Y')
-    member.add_distributed_load(-0.1, -0.2, 'z', 25, 75)
-    member.add_point_load(P, 'X', 50)
-    tip.add_load(10.0, 'moment', 'Z')
+    added = [
+        tip.add_load(-P, 'force', 'Y'),
+        member.add_distributed_load(-0.1, -0.2, 'z', 25, 75),
+        member.add_point_load(P, 'X', 50),
+        tip.add_load(10.0, 'moment', 'Z'),
+    ]
 
     loads = model.loads
-    assert len(loads) == 4
+    assert loads is model.nodes.loads
+    assert list(loads) == added   # each method returns the load it recorded
     assert [type(load) for load in loads] == [
         NodalLoad, DistributedLoad, PointLoad, NodalLoad]
     force, moment = loads.nodal
@@ -92,6 +95,9 @@ def test_clearing_the_loads_lets_the_model_take_new_ones():
     tip.add_load(-P, 'force', 'Y')
     first = model.solve()
 
+    # The load set itself cannot be replaced: the nodes keep adding to it.
+    with pytest.raises(AttributeError):
+        model.loads = Loads()  # type: ignore[misc]
     model.loads.clear()
     assert len(model.loads) == 0
     tip.add_load(-2*P, 'force', 'Z')

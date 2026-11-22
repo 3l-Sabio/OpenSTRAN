@@ -45,8 +45,7 @@ class Model():
             plane (str | None, optional): Plane constraint for 2D models ('xy', 'yz',
                 or 'zx'). Defaults to None for 3D models.
         """
-        self.loads = Loads()
-        self.nodes = Nodes(plane, loads=self.loads)
+        self.nodes = Nodes(plane)
         self.members = Members(self.nodes)
         self.solver = Solver()
         self.results: Results | None = None
@@ -102,6 +101,12 @@ class Model():
             tolerance=tolerance, max_iterations=max_iterations)
         self.results = results
         return results
+
+    @property
+    def loads(self) -> Loads:
+        """The loads applied to the structure, the same object as
+        ``nodes.loads``, to which the nodes and members add their loads."""
+        return self.nodes.loads
 
     def critical_load_factor(self) -> float:
         """Elastic critical load factor of the applied loads.

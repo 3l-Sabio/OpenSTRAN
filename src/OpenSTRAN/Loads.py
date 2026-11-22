@@ -124,7 +124,7 @@ class Loads:
     ) -> NodalLoad:
         """Add a force or moment to a node of the model.
 
-        ``node.add_load(magnitude, kind, direction)`` does the same.
+        ``Node.add_load`` calls this method.
 
         Args:
             node (Node): A node of this model.
@@ -163,8 +163,7 @@ class Loads:
 
         The force is applied to the node at its location, which is created
         (see ``Member.add_node``) if no node is there.
-        ``member.add_point_load(magnitude, direction, location)`` does the
-        same.
+        ``Member.add_point_load`` calls this method.
 
         Args:
             member (Member): A member of this model.
@@ -201,8 +200,8 @@ class Loads:
 
         Nodes are created at the start and end of the load (see
         ``Member.add_node``) where there are none, so that the mesh has
-        submembers that end there. ``member.add_distributed_load(w1, w2,
-        direction, loc1, loc2)`` does the same.
+        submembers that end there. ``Member.add_distributed_load`` calls this
+        method.
 
         Args:
             member (Member): A member of this model.

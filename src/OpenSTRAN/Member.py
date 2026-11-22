@@ -3,6 +3,7 @@ from .Node import Node
 from .Submember import SubMember
 from .Database.Shape import Shape
 from .Coordinates import Coordinate
+from .Loads import DistributedLoad, PointLoad
 from .Units import (
     COLLINEAR_TOLERANCE,
     LOAD_OVERLAP_TOLERANCE,
@@ -99,15 +100,8 @@ class Member():
         self.count: int = 0
 
         # Create the uniform subdivision nodes along the member span.
-        i = self.node_i.coordinates
-        j = self.node_j.coordinates
-        dx = j.x - i.x
-        dy = j.y - i.y
-        dz = j.z - i.z
         for k in range(1, self.mesh):
-            frac = k/self.mesh
-            self.nodes.add_node(
-                i.x + frac*dx, i.y + frac*dy, i.z + frac*dz, mesh_node=True)
+            self._node_at_fraction(k/self.mesh)
 
         # Collect and order every node lying on the member axis.
         mesh_nodes = self._axis_nodes()
@@ -239,7 +233,11 @@ class Member():
         Returns:
             Node: The node at the location; a mesh node if it was created.
         """
-        frac = location/100
+        return self._node_at_fraction(location/100)
+
+    def _node_at_fraction(self, frac: float) -> Node:
+        """The node at a fraction (0 to 1) of the span, created as a mesh
+        node if there is none; used by ``add_node`` and the mesh."""
         i = self.node_i.coordinates
         dx = self.node_j.coordinates.x - i.x
         dy = self.node_j.coordinates.y - i.y
@@ -325,7 +323,7 @@ class Member():
         )
         self.submembers[self.count] = submbr
 
-    def add_point_load(self, mag: float, direction: str, location: float) -> None:
+    def add_point_load(self, mag: float, direction: str, location: float) -> PointLoad:
         """Apply a concentrated point load to the member as a nodal load.
 
         Adds the load to the model's loads (``Model.loads``); see
@@ -339,10 +337,13 @@ class Member():
                 ('x', 'y', 'z').
             location (float): Load location as percentage of member span (0-100%).
 
+        Returns:
+            PointLoad: The load as recorded.
+
         Raises:
             ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
-        self.nodes.loads.add_point_load(self, mag, direction, location)
+        return self.nodes.loads.add_point_load(self, mag, direction, location)
 
     def point_load_vector(self, mag: float, direction: str) -> np.ndarray:
         """Global X, Y and Z components of a point load on the member.
@@ -368,7 +369,7 @@ class Member():
         ])
         return self._local_axes() @ local
 
-    def add_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
+    def add_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float) -> DistributedLoad:
         """Apply a trapezoidal distributed load along the member.
 
         Adds the load to the model's loads (``Model.loads``); see
@@ -390,10 +391,13 @@ class Member():
             loc2 (float): End location of load along member span as percentage
                 (0-100%).
 
+        Returns:
+            DistributedLoad: The load as recorded.
+
         Raises:
             ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
-        self.nodes.loads.add_distributed_load(
+        return self.nodes.loads.add_distributed_load(
             self, Mag1, Mag2, direction, loc1, loc2)
 
     def distributed_load_actions(

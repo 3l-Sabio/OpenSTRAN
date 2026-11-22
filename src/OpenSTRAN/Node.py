@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, asdict
 
 from .Coordinates import Coordinate
-from .Loads import Loads
+from .Loads import Loads, NodalLoad
 
 from typing import Any
 
@@ -83,7 +83,7 @@ class Node():
                 msg6=str("Roller in the x direction: [0,1,1,0,0,0]")
             ))
 
-    def add_load(self, mag: float, lType: str, direction: str) -> None:
+    def add_load(self, mag: float, lType: str, direction: str) -> NodalLoad:
         """Add a load to the node.
 
         The load is recorded in the model's loads (``Model.loads``) and
@@ -96,6 +96,9 @@ class Node():
             direction (str): Direction of the load, a global axis: 'X', 'Y'
                 or 'Z'.
 
+        Returns:
+            NodalLoad: The load as recorded.
+
         Raises:
             RuntimeError: If the node was not added to a model with
                 ``Nodes.add_node``.
@@ -105,4 +108,4 @@ class Node():
             raise RuntimeError(
                 "The node belongs to no model: add nodes with "
                 "Nodes.add_node.")
-        self.loads.add_nodal_load(self, mag, lType, direction)
+        return self.loads.add_nodal_load(self, mag, lType, direction)
