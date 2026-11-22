@@ -1,4 +1,4 @@
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
@@ -53,6 +53,11 @@ def _check_axis(axis: str) -> None:
             f"axis must be 'major' or 'minor', not {axis!r}.")
 
 
+def _pair(values: Sequence[float]) -> tuple[float, float]:
+    i, j = values
+    return float(i), float(j)
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class SubMemberResult:
     """End displacements and end forces of one submember, and its internal
@@ -92,8 +97,12 @@ class SubMemberResult:
         displacements = np.array(self.displacements, dtype=float).reshape(-1)
         displacements.setflags(write=False)
         object.__setattr__(self, 'displacements', displacements)
+        object.__setattr__(self, 'forces', MappingProxyType(
+            {key: _pair(value) for key, value in self.forces.items()}))
+        object.__setattr__(self, 'w_major', _pair(self.w_major))
+        object.__setattr__(self, 'w_minor', _pair(self.w_minor))
         object.__setattr__(
-            self, 'forces', MappingProxyType(dict(self.forces)))
+            self, 'second_order_axial', float(self.second_order_axial))
         major = minor = (0.0, 0.0, 0.0)
         if self.second_order_axial:
             major, minor = self.submember.deflection_polynomials(
@@ -116,13 +125,10 @@ class SubMemberResult:
         return cls(
             submember=submember,
             displacements=np.asarray(r['displacements'], dtype=float),
-            forces={key: (float(r[key][0]), float(r[key][1]))
-                    for key in FORCE_KEYS},
-            w_major=(float(submember.w_major[0]),
-                     float(submember.w_major[1])),
-            w_minor=(float(submember.w_minor[0]),
-                     float(submember.w_minor[1])),
-            second_order_axial=float(submember.second_order_axial),
+            forces={key: _pair(r[key]) for key in FORCE_KEYS},
+            w_major=_pair(submember.w_major),
+            w_minor=_pair(submember.w_minor),
+            second_order_axial=submember.second_order_axial,
         )
 
     def moment(self, x: float, axis: str = 'major') -> float:
@@ -305,9 +311,11 @@ class MemberResult:
 
     def _locate(self, location: float) -> tuple[SubMemberResult, float]:
         """The submember at a location along the span, and the distance (in
-        inches) from its i end. A location beyond the span is clamped to
-        the end of the last submember."""
-        target = self.member.length*(location/100)  # inches from node i
+        inches) from its i end. A location outside the span is clamped to
+        the nearer end."""
+        length = self.member.length
+        # Inches from node i, within the span.
+        target = min(max(length*location/100, 0.0), length)
         run = 0.0
         for sub in self.submembers:
             sub_length = sub.submember.length
@@ -325,7 +333,8 @@ class MemberResult:
 
         Args:
             location (float): Position along the span as a percentage
-                (0-100%).
+                (0-100%). A location outside the span is taken at the
+                nearer end.
             axis (str, optional): 'major' (about local z) or 'minor' (about
                 local y). Defaults to 'major'.
 
@@ -343,7 +352,8 @@ class MemberResult:
 
         Args:
             location (float): Position along the span as a percentage
-                (0-100%).
+                (0-100%). A location outside the span is taken at the
+                nearer end.
             axis (str, optional): 'major' (along local y) or 'minor' (along
                 local z). Defaults to 'major'.
 

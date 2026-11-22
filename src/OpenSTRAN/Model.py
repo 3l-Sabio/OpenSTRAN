@@ -1,5 +1,6 @@
 import numpy as np
 
+from .Node import PLANE_RESTRAINTS, Node
 from .Nodes import Nodes
 from .Members import Members
 from .Results import FORCE_KEYS, Results
@@ -65,8 +66,9 @@ class Model():
         the applied loads. Equilibrium is formulated on the undeformed
         geometry. The bowing of a member between its ends (P-delta) is
         captured only if the member is meshed into several submembers. If
-        the analysis fails or is interrupted, the model is left holding the
-        first-order solution.
+        the second-order iteration fails or is interrupted, the model is
+        left holding the first-order solution; if the first-order analysis
+        fails, the model keeps the results of the previous analysis (if any).
 
         Args:
             second_order (bool, optional): Run a second-order (P-Delta)
@@ -153,6 +155,17 @@ class Model():
         for member in self.members.members.values():
             member.prepare()
 
+    def _require_results(self) -> Results:
+        """The results of the last analysis.
+
+        Raises:
+            RuntimeError: If the model has not been solved.
+        """
+        if self.results is None:
+            raise RuntimeError(
+                "The model has no results: call solve() first.")
+        return self.results
+
     def maxReactions(self) -> None:
         """Calculate maximum reaction forces and moments at restrained nodes.
 
@@ -167,14 +180,17 @@ class Model():
         * Rmx_max: Maximum X-direction reaction moment
         * Rmy_max: Maximum Y-direction reaction moment
         * Rmz_max: Maximum Z-direction reaction moment
+
+        Raises:
+            RuntimeError: If the model has not been solved.
         """
-        assert self.results is not None
-        self.Rx_max = self.results.Rx_max
-        self.Ry_max = self.results.Ry_max
-        self.Rz_max = self.results.Rz_max
-        self.Rmx_max = self.results.Rmx_max
-        self.Rmy_max = self.results.Rmy_max
-        self.Rmz_max = self.results.Rmz_max
+        results = self._require_results()
+        self.Rx_max = results.Rx_max
+        self.Ry_max = results.Ry_max
+        self.Rz_max = results.Rz_max
+        self.Rmx_max = results.Rmx_max
+        self.Rmy_max = results.Rmy_max
+        self.Rmz_max = results.Rmz_max
 
     def maxMbrForces(self) -> None:
         """Calculate maximum member forces and identify local extrema.
@@ -191,9 +207,11 @@ class Model():
         * Vz_max, Vz_maxima, Vz_minima: Z-direction shear force results
         * Mzz_max, Mzz_maxima, Mzz_minima: Major axis bending moment results
         * Myy_max, Myy_maxima, Myy_minima: Minor axis bending moment results
+
+        Raises:
+            RuntimeError: If the model has not been solved.
         """
-        assert self.results is not None
-        results = self.results
+        results = self._require_results()
 
         # Each submember's end forces, with the j end's sign flipped so that
         # both ends follow the same internal force sign convention.
@@ -309,16 +327,24 @@ class Model():
     def reactions(self) -> None:
         """Print nodal reactions to console.
 
-        Displays all reaction forces (Rx, Ry, Rz) and reaction moments (Mx, My, Mz)
-        at all restrained support nodes in a formatted table.
+        Displays the reaction forces (Rx, Ry, Rz) and reaction moments (Mx,
+        My, Mz) of every node the user added, and of every mesh node with a
+        support (a restraint other than those that keep the nodes of a
+        two-dimensional model in its plane), for example one placed on the
+        node a point load created.
         """
         def tidy(value: float) -> float:
             # Round first so a tiny negative value does not print as "-0.00".
             return round(value, 2) + 0.0
 
+        def supported(node: Node) -> bool:
+            in_plane = PLANE_RESTRAINTS.get(
+                node.plane or '', (0, 0, 0, 0, 0, 0))
+            return any(r and not p for r, p in zip(node.restraint, in_plane))
+
         print('Nodal Reactions')
         for node in self.nodes.nodes.values():
-            if node.mesh_node is not True:
+            if not node.mesh_node or supported(node):
                 print(f'\tNode {node.node_ID}:')
                 print(f'\t\tRx = {tidy(node.Rx):.2f} kips')
                 print(f'\t\tRy = {tidy(node.Ry):.2f} kips')
@@ -329,8 +355,12 @@ class Model():
 
     def max_deflection(self) -> None:
         """Copy the maximum translations of the last results onto the model
-        as ``Ux_max``, ``Uy_max`` and ``Uz_max``."""
-        assert self.results is not None
-        self.Ux_max = self.results.Ux_max
-        self.Uy_max = self.results.Uy_max
-        self.Uz_max = self.results.Uz_max
+        as ``Ux_max``, ``Uy_max`` and ``Uz_max``.
+
+        Raises:
+            RuntimeError: If the model has not been solved.
+        """
+        results = self._require_results()
+        self.Ux_max = results.Ux_max
+        self.Uy_max = results.Uy_max
+        self.Uz_max = results.Uz_max

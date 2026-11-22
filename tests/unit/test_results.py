@@ -13,7 +13,7 @@ import pytest
 from OpenSTRAN import Model
 from OpenSTRAN.Members import Members
 from OpenSTRAN.Nodes import Nodes
-from OpenSTRAN.Results import Results
+from OpenSTRAN.Results import Results, SubMemberResult
 from OpenSTRAN.Solver import Solver
 
 L = 120.0     # in
@@ -80,7 +80,7 @@ def test_reaction_at_a_support_on_a_load_node(
     assert len(model.nodes.nodes) == 3       # the load created a node
     prop = model.nodes.add_node(L/2, 0, 0)   # returns the load's node
     assert len(model.nodes.nodes) == 3
-    assert not prop.mesh_node                # now a user node
+    assert prop.mesh_node
     prop.restraint = [0, 1, 0, 0, 0, 0]
 
     results = model.solve()
@@ -90,6 +90,46 @@ def test_reaction_at_a_support_on_a_load_node(
     model.reactions()
     assert (f'\tNode {prop.node_ID}:\n\t\tRx = 0.00 kips\n\t\tRy = 2.00 kips'
             in capsys.readouterr().out)
+
+
+def test_printed_reactions_in_a_plane_model(
+        capsys: pytest.CaptureFixture[str]):
+    # Every node of a plane model is restrained out of its plane, so only
+    # the nodes the user added and a support on a mesh node are printed.
+    model = Model(plane='xy')
+    base = model.nodes.add_node(0, 0, 0)
+    tip = model.nodes.add_node(L, 0, 0)
+    base.restraint = [1, 1, 1, 1, 1, 1]
+    member = model.members.add_member(base, tip, E=E, Ixx=I, Iyy=I, mesh=4)
+    member.add_point_load(-P, 'Y', 50)
+    prop = model.nodes.find_node(L/2, 0, 0)  # the load's node
+    assert prop is not None and prop.mesh_node
+    assert prop.restraint == [0, 0, 1, 1, 1, 0]   # keeps it in the plane
+    prop.restraint = [0, 1, 1, 1, 1, 0]           # adds a support
+
+    model.solve()
+    model.reactions()
+    out = capsys.readouterr().out
+    printed = [n.node_ID for n in model.nodes.nodes.values()
+               if f'\tNode {n.node_ID}:\n' in out]
+    assert len(model.nodes.nodes) == 5
+    assert printed == [base.node_ID, tip.node_ID, prop.node_ID]
+    assert (f'\tNode {prop.node_ID}:\n\t\tRx = 0.00 kips\n\t\tRy = 2.00 kips'
+            in out)
+
+
+def test_maxima_before_a_solve_raise():
+    model = Model()
+    base = model.nodes.add_node(0, 0, 0)
+    tip = model.nodes.add_node(L, 0, 0)
+    base.restraint = [1, 1, 1, 1, 1, 1]
+    model.members.add_member(base, tip, E=E, Ixx=I, Iyy=I, mesh=MESH)
+    tip.add_load(-P, 'force', 'Y')
+
+    for method in (model.maxReactions, model.maxMbrForces,
+                   model.max_deflection):
+        with pytest.raises(RuntimeError, match='solve'):
+            method()
 
 
 def test_maxima_need_no_extra_call():
@@ -218,6 +258,20 @@ def test_results_are_read_only():
         results.second_order = True  # type: ignore[misc]
     with pytest.raises(AttributeError):
         results.iterations = 1  # type: ignore[misc]
+
+    # Built directly from lists, a submember result keeps tuples.
+    direct = SubMemberResult(
+        submember=sub.submember,
+        displacements=list(sub.displacements),  # type: ignore[arg-type]
+        forces={key: list(value) for key, value in sub.forces.items()},  # type: ignore[misc]
+        w_major=[0.0, 0.0],  # type: ignore[arg-type]
+        w_minor=[0.0, 0.0],  # type: ignore[arg-type]
+        second_order_axial=0.0)
+    assert direct.forces['axial'] == pytest.approx(sub.forces['axial'])
+    with pytest.raises(TypeError):
+        direct.forces['axial'][0] = 1.0  # type: ignore[index]
+    with pytest.raises(TypeError):
+        direct.w_major[0] = 1.0  # type: ignore[index]
 
 
 def test_results_compare_by_identity():
@@ -375,6 +429,9 @@ def test_moments_and_shears_along_a_member():
         assert beam.shear(location) == pytest.approx(wy*(L/2 - x), abs=1e-9)
         assert beam.shear(location, 'minor') == pytest.approx(
             wz*(L/2 - x), abs=1e-9)
+    # A location outside the span is taken at the nearer end.
+    assert beam.shear(-10) == beam.shear(0)
+    assert beam.shear(110) == beam.shear(100)
 
     middle = beam.submembers[1]   # from L/3 to 2L/3
     x = L/2 - L/3
