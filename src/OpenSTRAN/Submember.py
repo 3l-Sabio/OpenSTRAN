@@ -28,12 +28,6 @@ class SubMember():
         A (float): Cross-sectional area.
         G (float): Shear modulus.
         J (float): Polar moment of inertia.
-        results (dict[str, list[float]]): Analysis results storage: the end
-            displacements and end forces of the last successful solve, and
-            the distributed-load intensities it applied (``w_major`` and
-            ``w_minor``, i end and j end, in kips per inch, in the major
-            (local y) and minor (local z) planes). ``Model.solve`` copies
-            them here from its results while the old result names remain.
         length (float): Submember length in inches (computed).
         rotation_matrix (np.ndarray): Rotation matrix from local to global coordinates.
         transformation_matrix (np.ndarray): Transformation matrix for coordinate conversion.
@@ -51,14 +45,11 @@ class SubMember():
     A: float
     G: float
     J: float
-    results: dict[str, list[float]] = field(
-        default_factory=dict[str, list[float]])
     length: float = field(init=False)
     rotation_matrix: np.ndarray = field(init=False)
     transformation_matrix: np.ndarray = field(init=False)
     Kl_unreleased: np.ndarray = field(init=False)
     Kl: np.ndarray = field(init=False)
-    second_order_axial: float = field(init=False)
 
     def properties(self) -> dict[str, Any]:
         """Return all submember properties as a dictionary.
@@ -74,25 +65,8 @@ class SubMember():
     def __post_init__(self) -> None:
         """Initialize a SubMember instance.
 
-        Calculates geometric properties and initializes the results
-        dictionary.
+        Calculates geometric properties and the stiffness matrices.
         """
-        self.results: dict[str, list[float]] = {
-            'displacements': [],
-            'axial': [],
-            'shear': [],
-            'transverse shear': [],
-            'torsional moments': [],
-            'minor axis moments': [],
-            'major axis moments': [],
-            'w_major': [],
-            'w_minor': []
-        }
-        # Axial force (j end, tension positive) whose geometric stiffness was
-        # included in the last successful analysis; zero after a first-order
-        # analysis. Model.solve copies it here from its results while the old
-        # result names remain.
-        self.second_order_axial = 0.0
         # calculate the member length based on the node coordinates
         self.length = self.calculate_length(self.node_i, self.node_j)
 
@@ -162,42 +136,6 @@ class SubMember():
         # A positive rotation about local y gives a negative slope dw/dx.
         return (cubic(d[1], d[5], d[7], d[11]),
                 cubic(d[2], -d[4], d[8], -d[10]))
-
-    # Temporary: the old result methods, until they are removed. Each
-    # evaluates the results of the submember's current state.
-
-    def moment_major(self, x: float) -> float:
-        """Major-axis bending moment at local position x, in kip-inches; see
-        ``SubMemberResult.moment``."""
-        return self._result().moment(x, 'major')
-
-    def shear_major(self, x: float) -> float:
-        """Major-axis shear force at local position x, in kips; see
-        ``SubMemberResult.shear``."""
-        return self._result().shear(x, 'major')
-
-    def moment_minor(self, x: float) -> float:
-        """Minor-axis bending moment at local position x, in kip-inches; see
-        ``SubMemberResult.moment``."""
-        return self._result().moment(x, 'minor')
-
-    def shear_minor(self, x: float) -> float:
-        """Minor-axis shear force at local position x, in kips; see
-        ``SubMemberResult.shear``."""
-        return self._result().shear(x, 'minor')
-
-    def force_extrema(self) -> dict[str, tuple[float, float]]:
-        """(max, min) of each internal force over the span; see
-        ``SubMemberResult.force_extrema``."""
-        return self._result().force_extrema()
-
-    def _p_delta_moment(self, x: float, axis: str) -> float:
-        return self._result()._p_delta_moment(x, axis)
-
-    def _result(self):
-        # Imported here because the Results module imports this one.
-        from .Results import SubMemberResult
-        return SubMemberResult.from_submember(self)
 
     def calculate_length(self, node_i: Node, node_j: Node) -> float:
         """Compute Euclidean length between two nodes.

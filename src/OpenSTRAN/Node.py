@@ -29,18 +29,6 @@ class Node():
     coordinates: Coordinate
     node_ID: int
     mesh_node: bool = False
-    Ux: float = 0.0
-    Uy: float = 0.0
-    Uz: float = 0.0
-    phi_x: float = 0.0
-    phi_y: float = 0.0
-    phi_z: float = 0.0
-    Rx: float = 0.0
-    Ry: float = 0.0
-    Rz: float = 0.0
-    Rmx: float = 0.0
-    Rmy: float = 0.0
-    Rmz: float = 0.0
     plane: str | None = None
     restraint: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0, 0])
     # The model's loads, which add_load adds to; set by Nodes.add_node.

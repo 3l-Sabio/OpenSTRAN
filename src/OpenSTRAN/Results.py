@@ -1,5 +1,6 @@
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from math import sqrt
 from types import MappingProxyType
 
 import numpy as np
@@ -7,6 +8,7 @@ import numpy as np
 from .Member import Member
 from .Node import Node
 from .Submember import SubMember
+from .Units import CONTINUOUS_BRACE_SPACING
 
 
 # End force components of a submember, in local coordinates.
@@ -109,28 +111,6 @@ class SubMemberResult:
                 displacements, self.second_order_axial)
         object.__setattr__(
             self, '_deflection', {'major': major, 'minor': minor})
-
-    @classmethod
-    def from_submember(cls, submember: SubMember) -> SubMemberResult:
-        """The results of a submember, from the old result attributes that
-        ``Model.solve`` copies onto it. Used by the old result methods
-        (``SubMember.moment_major`` and the others) until they are removed.
-
-        Args:
-            submember (SubMember): The submember.
-
-        Returns:
-            SubMemberResult: Its results.
-        """
-        r = submember.results
-        return cls(
-            submember=submember,
-            displacements=np.asarray(r['displacements'], dtype=float),
-            forces={key: _pair(r[key]) for key in FORCE_KEYS},
-            w_major=_pair(r['w_major']),
-            w_minor=_pair(r['w_minor']),
-            second_order_axial=submember.second_order_axial,
-        )
 
     def moment(self, x: float, axis: str = 'major') -> float:
         """Internal bending moment at a position along the submember.
@@ -296,23 +276,6 @@ class MemberResult:
     member: Member
     submembers: tuple[SubMemberResult, ...]
 
-    @classmethod
-    def from_member(cls, member: Member) -> MemberResult:
-        """The results of a member, from the old result attributes that
-        ``Model.solve`` copies onto its submembers. Used by the old result
-        methods (``Member.moment`` and ``Member.shear``) until they are
-        removed.
-
-        Args:
-            member (Member): The member.
-
-        Returns:
-            MemberResult: Its results.
-        """
-        return cls(member, tuple(
-            SubMemberResult.from_submember(submember)
-            for submember in member.submembers.values()))
-
     def _locate(self, location: float) -> tuple[SubMemberResult, float]:
         """The submember at a location along the span, and the distance (in
         inches) from its i end. A location outside the span is clamped to
@@ -369,6 +332,164 @@ class MemberResult:
         """
         sub, x = self._locate(location)
         return sub.shear(x, axis)
+
+    def calculate_Cb(self) -> float:
+        """Calculate the lateral-torsional buckling coefficient (Cb) for the
+        member, from the major-axis moments of this analysis.
+
+        Computes Cb based on moment variation along unbraced spans using the
+        standard AISC formula: Cb = 12.5*Mmax / (2.5*Mmax + 3*Ma + 4*Mb + 3*Mc).
+        The calculation accounts for lateral bracing locations and interpolates
+        moments at quarter-span points. The result is limited to a maximum of
+        3.0.
+
+        Returns:
+            float: The lateral-torsional buckling coefficient, limited to 3.0 maximum.
+
+        Raises:
+            ValueError: If the member's bracing is not 'continuous',
+                'quarter', 'third', 'midspan' or a list of locations.
+        """
+        member = self.member
+        # Instantiate an array to hold Cb for each unbraced span
+        Cb: list[float] = []
+
+        def discretize(length: float, n: int, l1: float = 0.0) -> list[float]:
+            """Discretize span into n segments and return division points.
+
+            Args:
+                length (float): Length of span.
+                n (int): Number of segments.
+                l1 (float, optional): Offset location. Defaults to 0.0.
+
+            Returns:
+                list[float]: List of discretized locations.
+            """            # Returns an n-sized array of locations along the member span
+            locations: list[float] = []
+            for i in range(n-1):
+                i += 1
+                locations.append(l1 + i * length / n)
+            return (locations)
+
+        def braceCoordinates(bracePoint: float) -> tuple[float, float, float]:
+            """Calculate the global coordinates of a brace point along the member.
+
+            Args:
+                bracePoint (float): Distance along member span.
+
+            Returns:
+                tuple[float, float, float]: Tuple of (x, y, z) coordinates.
+            """
+            # Calculate the x, y and z vector components of the member
+            dx = member.node_j.coordinates.x - member.node_i.coordinates.x
+            dy = member.node_j.coordinates.y - member.node_i.coordinates.y
+            dz = member.node_j.coordinates.z - member.node_i.coordinates.z
+            # Calculate the member unit vectors
+            x_unit = dx/member.length
+            y_unit = dy/member.length
+            z_unit = dz/member.length
+            # Calculate nodal coordinates of brace point
+            x = member.node_i.coordinates.x + bracePoint*x_unit
+            y = member.node_i.coordinates.y + bracePoint*y_unit
+            z = member.node_i.coordinates.z + bracePoint*z_unit
+            # Return the brace point coordinates
+            return (x, y, z)
+
+        if member.bracing == 'continuous':
+            # Continuous bracing is taken as evenly spaced brace points.
+            bracePoints = discretize(
+                member.length, round(member.length/CONTINUOUS_BRACE_SPACING))
+        elif member.bracing == 'quarter':
+            bracePoints = discretize(member.length, 4)
+        elif member.bracing == 'third':
+            bracePoints = discretize(member.length, 3)
+        elif member.bracing == 'midspan':
+            bracePoints = discretize(member.length, 2)
+        else:
+            if type(member.bracing) == list:
+                pass
+            else:
+                raise ValueError(
+                    "Must be 'quarter','third','midspan' or an array of locations"
+                )
+            bracePoints = member.bracing
+
+        unbracedSpans = len(bracePoints) + 1
+
+        for i in range(unbracedSpans):
+
+            # Determine unbraced span length
+            if i == 0:
+                l1 = 0.0
+                unbracedLength = bracePoints[i]
+            elif i == len(bracePoints):
+                l1 = bracePoints[i-1]
+                unbracedLength = member.length - l1
+            else:
+                l1 = bracePoints[i-1]
+                unbracedLength = bracePoints[i] - l1
+
+            # Determine the 1/4 point locations along the unbraced span
+            quarterPoints = discretize(unbracedLength, 4, l1)
+
+            # Instantiate an empty array to hold Mmax
+            moments: list[float] = []
+            # Instantiate an empty array to hold Ma, Mb, and Mc
+            M: list[float] = []
+
+            # Determine the nodal coordinates of the quarter points
+            for quarterPoint in quarterPoints:
+                coordinates = braceCoordinates(quarterPoint)
+
+                for sub in self.submembers:
+                    submbr = sub.submember
+                    ends = sub.forces['major axis moments']
+                    # 1/4 point coordinates
+                    x = coordinates[0]
+                    y = coordinates[1]
+                    z = coordinates[2]
+                    # Node i coordinates
+                    xi = submbr.node_i.coordinates.x
+                    yi = submbr.node_i.coordinates.y
+                    zi = submbr.node_i.coordinates.z
+                    # Node j coordinates
+                    xj = submbr.node_j.coordinates.x
+                    yj = submbr.node_j.coordinates.y
+                    zj = submbr.node_j.coordinates.z
+                    # Determine which submembers the 1/4 point falls between
+                    if (xi, yi, zi) <= coordinates <= (xj, yj, zj):
+                        # Location values for linear interpolation
+                        Lp: list[float] = []
+                        Lp.append(0.0)
+                        Lp.append(submbr.length)
+                        # Moment values for linear interpolation
+                        Mp: list[float] = []
+                        Mp.append(ends[0])
+                        Mp.append(-1*ends[1])
+                        # Location for moment interpolation
+                        dx = x - xi
+                        dy = y - yi
+                        dz = z - zi
+                        L = sqrt(dx**2 + dy**2 + dz**2)
+                        # Interpolate the quarter point moment value
+                        M.append(abs(np.interp(L, Lp, Mp)))
+                        moments.append(max(
+                            abs(ends[0]),
+                            abs(ends[1])
+                        ))
+                    else:
+                        moments.append(max(
+                            abs(ends[0]),
+                            abs(ends[1])
+                        ))
+            # Calculate Cb
+            Mmax = max(moments)
+            Ma = M[0]
+            Mb = M[1]
+            Mc = M[2]
+            Cb.append(12.5*Mmax/(2.5*Mmax + 3*Ma + 4*Mb + 3*Mc))
+
+        return float(min(min(Cb), 3))
 
 
 class Results:
@@ -441,6 +562,11 @@ class Results:
     @property
     def iterations(self) -> int:
         return self._iterations
+
+    @property
+    def nodes(self) -> tuple[Node, ...]:
+        """The nodes of the analysis, in order."""
+        return self._nodes
 
     @property
     def members(self) -> tuple[MemberResult, ...]:
