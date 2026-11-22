@@ -192,8 +192,8 @@ of freedom, for example the rotation of a joint at which every member is
 released, or reports that the structure is a unstable. 
 
 If a ``ValueError`` is raised, a first-order analysis still solves such a model
-with a ``LinAlgWarning``. After such an error, or if the analysis is interrupted, 
-the model holds the first-order solution.
+with a ``LinAlgWarning``. After such an error, or if the analysis is interrupted,
+the model keeps the results of its previous analysis, if any.
 
 Elastic Critical Load
 ^^^^^^^^^^^^^^^^^^^^^
@@ -214,8 +214,8 @@ only reduce axial stiffness and would otherwise give a meaningless factor
 level of rounding error are treated as zero. A ``ValueError`` is raised if
 the applied loads put no member in compression, if every member in
 compression is restrained against bending and twisting, or if the elastic
-stiffness is singular, as above. The model is left holding
-the first-order solution under the applied loads.
+stiffness is singular, as above. The results of the model are left as they
+were.
 
 Known Issue: Released Members
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

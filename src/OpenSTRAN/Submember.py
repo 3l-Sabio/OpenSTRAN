@@ -29,10 +29,11 @@ class SubMember():
         G (float): Shear modulus.
         J (float): Polar moment of inertia.
         results (dict[str, list[float]]): Analysis results storage: the end
-            displacements and end forces of the last solve, and the
-            distributed-load intensities it applied (``w_major`` and
+            displacements and end forces of the last successful solve, and
+            the distributed-load intensities it applied (``w_major`` and
             ``w_minor``, i end and j end, in kips per inch, in the major
-            (local y) and minor (local z) planes).
+            (local y) and minor (local z) planes). ``Model.solve`` copies
+            them here from its results while the old result names remain.
         length (float): Submember length in inches (computed).
         rotation_matrix (np.ndarray): Rotation matrix from local to global coordinates.
         transformation_matrix (np.ndarray): Transformation matrix for coordinate conversion.
@@ -88,9 +89,9 @@ class SubMember():
             'w_minor': []
         }
         # Axial force (j end, tension positive) whose geometric stiffness was
-        # included in the last analysis; zero after a first-order analysis.
-        # Copied into the results, where it adds the P-delta moment to the
-        # internal forces along the span.
+        # included in the last successful analysis; zero after a first-order
+        # analysis. Model.solve copies it here from its results while the old
+        # result names remain.
         self.second_order_axial = 0.0
         # calculate the member length based on the node coordinates
         self.length = self.calculate_length(self.node_i, self.node_j)

@@ -2,7 +2,7 @@ from .Loads import Loads, NodalLoad, PointLoad
 from .Nodes import Nodes
 from .Members import Members
 from .Submember import SubMember
-from .Results import MemberResult, Results
+from .Results import FORCE_KEYS, MemberResult, Results, SubMemberResult
 
 import numpy as np
 from scipy.linalg import solve, cho_factor, cho_solve, eigh, LinAlgError
@@ -23,11 +23,10 @@ class Solver():
         Kt (numpy.ndarray | None): Tangent stiffness matrix (elastic plus
             geometric) of the last second-order analysis, or None.
         iterations (int): Number of iterations performed by the last
-            second-order analysis; 0 for a first-order analysis or after a
-            failed second-order analysis.
-        results (Results | None): Results of the last solve. None if it
-            failed before the first-order solution; after a failed
-            second-order analysis, the first-order results.
+            second-order analysis, including one that failed; 0 for a
+            first-order analysis.
+        results (Results | None): Results of the last successful solve, or
+            None before the first.
         force_vector (numpy.ndarray | None): Global force vector with applied loads.
         global_displacement_vector (numpy.ndarray | None): Global displacement vector at all nodes.
         global_force_vector (numpy.ndarray | None): Global reaction force vector.
@@ -53,6 +52,12 @@ class Solver():
         # distributed load lands on, by id, built by _setup at each solve.
         self._span_actions: dict[int, np.ndarray] = {}
         self._span_intensities: dict[int, np.ndarray] = {}
+        # The local end displacements and end forces of each submember, and
+        # the axial force whose geometric stiffness was included, by id, as
+        # the analysis in progress has found them. The model's objects are
+        # not changed: a solve that fails leaves them as they were.
+        self._end_forces: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+        self._axial: dict[int, float] = {}
 
     def solve(
         self,
@@ -80,8 +85,8 @@ class Solver():
 
         The second-order analysis uses the load control method of McGuire et al.
         (Equations 12.11 and 12.16, as a single load increment) with the
-        geometry held fixed. If a second-order analysis fails or is 
-        interrupted, the model is left holding the first-order solution.
+        geometry held fixed. An analysis that fails or is interrupted raises
+        without results and changes neither the model nor ``results``.
 
         Args:
             nodes (Nodes): Collection of nodes in the structural model.
@@ -106,44 +111,12 @@ class Solver():
             ValueError: If a second-order analysis finds that the elastic
                 stiffness is singular.
         """
-        self.Kt = None
-        self.iterations = 0
-        self.results = None
-        self._setup(nodes, loads)
-
-        # First-order analysis with the elastic stiffness of each submember.
-        submembers = self._submembers(members)
-        elastic = [(submbr, submbr.Kl) for submbr in submembers]
-        for submbr in submembers:
-            submbr.second_order_axial = 0.0
-        self.Kp = self._assemble(elastic)
-        self.global_displacement_vector = self._solve_free(self.Kp)
-        self._recover(elastic, self.Kp)
-
-        if not second_order:
-            self.results = self._results(nodes, members, second_order=False)
-            return self.results
-
-        first_order = self.global_displacement_vector.copy()
-        completed = False
-        try:
+        submembers = self._first_order(nodes, members, loads)
+        if second_order:
             self._second_order(nodes, submembers, tolerance, max_iterations)
-            self.results = self._results(nodes, members, second_order=True)
-            completed = True
-        finally:
-            if not completed:
-                # Whether an error or an interrupt stopped the analysis,
-                # leave the model holding the first-order solution rather
-                # than a mixture of iterations.
-                for submbr in submembers:
-                    submbr.second_order_axial = 0.0
-                self.global_displacement_vector = first_order
-                self._recover(elastic, self.Kp)
-                self.Kt = None
-                self.iterations = 0
-                self.results = self._results(
-                    nodes, members, second_order=False)
-        return self.results
+        results = self._results(nodes, members, second_order)
+        self.results = results
+        return results
 
     def critical_load_factor(
         self, nodes: Nodes, members: Members, loads: Loads
@@ -153,8 +126,8 @@ class Solver():
         Solves the eigenproblem of McGuire et al., Equation 8.7,
         ``[Ke + lambda Kg] {d} = 0``, in which the geometric stiffness Kg is
         formed from the axial forces of a first-order analysis under the
-        applied loads (see ``SubMember.geometric_stiffness``). The model is 
-        left holding the first-order solution.
+        applied loads (see ``SubMember.geometric_stiffness``). It changes
+        neither the model nor ``results``.
 
         Args:
             nodes (Nodes): Collection of nodes in the structural model.
@@ -170,10 +143,8 @@ class Solver():
                 every member in compression is restrained against bending and
                 twisting, or if the elastic stiffness is singular.
         """
-        self.solve(nodes, members, loads)
+        submembers = self._first_order(nodes, members, loads)
         assert self.Kp is not None
-
-        submembers = self._submembers(members)
         free = self._free_dofs()
         self._check_stiffness(nodes, submembers, self.Kp, free)
 
@@ -181,16 +152,16 @@ class Solver():
             "The applied loads have no elastic critical load: they put no "
             "member in compression, or every member in compression is "
             "restrained against bending and twisting.")
+        # The axial and shear forces at both ends of each submember.
         scale = max(
-            (abs(float(force))
+            (abs(float(self._end_forces[id(submbr)][1][k]))
              for submbr in submembers
-             for key in ('axial', 'shear', 'transverse shear')
-             for force in submbr.results[key]),
+             for k in (0, 1, 2, 6, 7, 8)),
             default=0.0)
         geometric: list[tuple[SubMember, np.ndarray]] = []
         compression = False
         for submbr in submembers:
-            Fx2 = float(submbr.results['axial'][1])
+            Fx2 = float(self._end_forces[id(submbr)][1][6])
             if abs(Fx2) <= 1e-9*scale:
                 Fx2 = 0.0
             compression = compression or Fx2 < 0
@@ -214,6 +185,27 @@ class Solver():
         if mu_max <= 0:
             raise no_critical_load
         return 1.0/mu_max
+
+    def _first_order(
+        self, nodes: Nodes, members: Members, loads: Loads
+    ) -> list[SubMember]:
+        """First-order analysis with the elastic stiffness of each
+        submember.
+
+        Returns:
+            list[SubMember]: All submembers of the model, in assembly order.
+        """
+        self.Kt = None
+        self.iterations = 0
+        self._end_forces = {}
+        self._axial = {}
+        self._setup(nodes, loads)
+        submembers = self._submembers(members)
+        elastic = [(submbr, submbr.Kl) for submbr in submembers]
+        self.Kp = self._assemble(elastic)
+        self.global_displacement_vector = self._solve_free(self.Kp)
+        self._recover(elastic, self.Kp)
+        return submembers
 
     def _submembers(self, members: Members) -> list[SubMember]:
         """All submembers of the model, in assembly order."""
@@ -443,12 +435,13 @@ class Solver():
             # stiffness and for the P-delta moment along its span.
             R = np.zeros(self.nDoF)
             for submbr in submembers:
-                N_prev = submbr.second_order_axial
-                N = float(submbr.results['axial'][1])
-                submbr.second_order_axial = N
+                key = id(submbr)
+                d, forces = self._end_forces[key]
+                N_prev = self._axial.get(key, 0.0)
+                N = float(forces[6])
+                self._axial[key] = N
                 f = submbr.transformation_matrix.T @ (
-                    submbr.tangent_difference(N_prev, N)
-                    @ np.asarray(submbr.results['displacements'], dtype=float))
+                    submbr.tangent_difference(N_prev, N) @ d)
                 i = 6*(submbr.node_i.node_ID - 1)
                 j = 6*(submbr.node_j.node_ID - 1)
                 R[i:i + 6] += f[:6]
@@ -457,7 +450,7 @@ class Solver():
 
             # Tangent stiffness from the current axial forces.
             tangent = [
-                (submbr, submbr.tangent_stiffness(submbr.second_order_axial))
+                (submbr, submbr.tangent_stiffness(self._axial[id(submbr)]))
                 for submbr in submembers
             ]
             Kt = self._assemble(tangent)
@@ -495,10 +488,8 @@ class Solver():
         local_matrices: list[tuple[SubMember, np.ndarray]],
         K: np.ndarray
     ) -> None:
-        """Recover the reactions and the end forces of each submember.
-
-        Also stores, with each submember's end forces, the distributed-load
-        intensities of the solve, which the results copy.
+        """Recover the reactions, and the end displacements and end forces
+        of each submember (kept by the solver, not on the submember).
 
         Args:
             local_matrices: Pairs of a submember and the local stiffness
@@ -538,29 +529,16 @@ class Solver():
                 self.global_displacement_vector[jb, 0]
             ]).T
 
-            submbr.results['displacements'] = np.matmul(
-                submbr.transformation_matrix, mbrDisplacements)
+            d = np.matmul(submbr.transformation_matrix, mbrDisplacements)
 
             # The forces of the displacements, less the equivalent nodal
             # actions of the span loads: the forces the nodes apply to the
             # submember's ends.
             key = id(submbr)
-            forces = np.matmul(k_local, submbr.results['displacements'])
+            forces = np.matmul(k_local, d)
             if key in self._span_actions:
                 forces = forces - self._span_actions[key]
-            w = self._span_intensities.get(key, np.zeros(4))
-
-            submbr.results['axial'] = [forces[0], forces[6]]
-            submbr.results['shear'] = [forces[1], forces[7]]
-            submbr.results['transverse shear'] = [forces[2], forces[8]]
-            submbr.results['torsional moments'] = [
-                forces[3], forces[9]]
-            submbr.results['minor axis moments'] = [
-                forces[4], forces[10]]
-            submbr.results['major axis moments'] = [
-                forces[5], forces[11]]
-            submbr.results['w_major'] = [w[0], w[1]]
-            submbr.results['w_minor'] = [w[2], w[3]]
+            self._end_forces[key] = (d, forces)
 
     def _results(
         self, nodes: Nodes, members: Members, second_order: bool
@@ -579,10 +557,30 @@ class Solver():
             nodes=list(nodes.nodes.values()),
             displacements=self.global_displacement_vector,
             reactions=reactions,
-            members=[MemberResult.from_member(mbr)
-                     for mbr in members.members.values()],
+            members=[
+                MemberResult(mbr, tuple(
+                    self._submember_result(submbr)
+                    for submbr in mbr.submembers.values()))
+                for mbr in members.members.values()],
             second_order=second_order,
             iterations=self.iterations,
+        )
+
+    def _submember_result(self, submbr: SubMember) -> SubMemberResult:
+        """The results of one submember, from the solver's own record of
+        the analysis."""
+        key = id(submbr)
+        d, f = self._end_forces[key]
+        w = self._span_intensities.get(key, np.zeros(4))
+        return SubMemberResult(
+            submember=submbr,
+            displacements=d,
+            # FORCE_KEYS follow the order of the degrees of freedom at an end.
+            forces={name: (float(f[k]), float(f[k + 6]))
+                    for k, name in enumerate(FORCE_KEYS)},
+            w_major=(float(w[0]), float(w[1])),
+            w_minor=(float(w[2]), float(w[3])),
+            second_order_axial=self._axial.get(key, 0.0),
         )
 
     @staticmethod

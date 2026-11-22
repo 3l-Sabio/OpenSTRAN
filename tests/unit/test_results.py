@@ -393,11 +393,19 @@ def test_second_order_results():
     for sub in first.member(member).submembers:
         assert sub.second_order_axial == 0.0
 
+    # A first-order solve after a second-order one starts afresh.
+    third = model.solve()
+    assert third.second_order is False and third.iterations == 0
+    assert third.node(tip).Uy == first.node(tip).Uy
+    assert third.member(member).moment(45) == first.member(member).moment(45)
+    for sub in third.member(member).submembers:
+        assert sub.second_order_axial == 0.0
 
-def test_interrupt_while_collecting_second_order_results(
+
+def test_interrupt_while_collecting_results_leaves_the_previous_results(
         monkeypatch: pytest.MonkeyPatch):
     # Ctrl-C after the iterations converged, while the results are being
-    # collected, still leaves the first-order solution, not a mixture.
+    # collected, leaves the results of the analysis before, not a mixture.
     model = Model()
     base = model.nodes.add_node(0, 0, 0)
     tip = model.nodes.add_node(L, 0, 0)
@@ -407,6 +415,7 @@ def test_interrupt_while_collecting_second_order_results(
     tip.add_load(-P, 'force', 'Y')
     tip.add_load(-50.0, 'force', 'X')   # compression
     first = model.solve()
+    uy = tip.Uy
 
     collect = Solver._results
 
@@ -419,17 +428,67 @@ def test_interrupt_while_collecting_second_order_results(
 
     with pytest.raises(KeyboardInterrupt):
         model.solve(second_order=True)
-    results = model.results
-    assert results is not None and results is not first
-    assert results.second_order is False and results.iterations == 0
-    assert results.node(tip).Uy == pytest.approx(first.node(tip).Uy,
-                                                 rel=1e-12)
-    assert tip.Uy == pytest.approx(first.node(tip).Uy, rel=1e-12)
-    assert model.solver.iterations == 0 and model.solver.Kt is None
-    for sub in results.member(member).submembers:
-        assert sub.second_order_axial == 0.0
+    assert model.results is first
+    assert tip.Uy == uy
     for submember in member.submembers.values():
         assert submember.second_order_axial == 0.0
+
+
+def test_a_failed_solve_keeps_the_previous_results():
+    model = Model()
+    base = model.nodes.add_node(0, 0, 0)
+    tip = model.nodes.add_node(L, 0, 0)
+    base.restraint = [1, 1, 1, 1, 1, 1]
+    member = model.members.add_member(
+        base, tip, E=E, Ixx=I, Iyy=I, A=10.0, J=50.0, mesh=8)
+    member.add_distributed_load(-0.01, -0.01, 'Y', 0, 100)
+    tip.add_load(-50.0, 'force', 'X')   # compression
+
+    # Without earlier results, a failed solve leaves none.
+    with pytest.raises(RuntimeError, match='did not converge'):
+        model.solve(second_order=True, max_iterations=1)
+    assert model.results is None
+    assert tip.Uy == 0.0
+
+    # A failed first-order solve keeps second-order results, and the old
+    # attributes still agree with them.
+    second = model.solve(second_order=True)
+    moment = second.member(member).moment(45)
+    tip.add_load(math.nan, 'force', 'Z')
+    with pytest.raises(ValueError):
+        model.solve()
+    assert model.results is second
+    assert second.member(member).moment(45) == moment
+    assert member.moment(45) == moment
+    for submember in member.submembers.values():
+        assert submember.second_order_axial == pytest.approx(-50.0)
+
+
+def test_critical_load_factor_leaves_the_results(
+        monkeypatch: pytest.MonkeyPatch):
+    model = Model()
+    base = model.nodes.add_node(0, 0, 0)
+    tip = model.nodes.add_node(L, 0, 0)
+    base.restraint = [1, 1, 1, 1, 1, 1]
+    member = model.members.add_member(
+        base, tip, E=E, Ixx=I, Iyy=I, A=10.0, J=50.0, mesh=8)
+    tip.add_load(-P, 'force', 'Y')
+    tip.add_load(-50.0, 'force', 'X')   # compression
+
+    def no_results(*args: object) -> Results:
+        raise AssertionError("critical_load_factor() built results")
+    with monkeypatch.context() as patch:
+        patch.setattr(Solver, '_results', no_results)
+        factor = model.critical_load_factor()
+    assert model.results is None
+    assert tip.Uy == 0.0
+
+    second = model.solve(second_order=True)
+    uy, moment = tip.Uy, member.moment(45)
+    assert model.critical_load_factor() == factor
+    assert model.results is second
+    assert tip.Uy == uy
+    assert member.moment(45) == moment
 
 
 def test_moments_and_shears_along_a_member():

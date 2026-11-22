@@ -290,22 +290,25 @@ def test_fine_mesh_converges_near_the_critical_load(mesh: int, rtol: float):
     (1.2, 50, "limit load"),      # fails before the displacements change
     (0.4, 1, "did not converge"),  # fails after one iteration
 ])
-def test_failed_analysis_leaves_the_first_order_solution(
+def test_failed_analysis_leaves_the_previous_results(
         ratio: float, max_iterations: int, message: str):
-    # A failed analysis leaves the model holding the first-order solution,
-    # with its maxima, rather than a mixture of iterations.
-    first, _, tip_first = cantilever(-ratio * P_CR, 1.0)
-    first.solve()
-
+    # A failed analysis raises and leaves the model with the results of the
+    # analysis before it, rather than a mixture of iterations.
     model, _, tip = cantilever(-ratio * P_CR, 1.0)
+    first = model.solve()
+    ux, mzz = tip.Ux, model.Mzz_max
+    member = next(iter(model.members.members.values()))
+    moments = [s.results['major axis moments'][0]
+               for s in member.submembers.values()]
+
     with pytest.raises(RuntimeError, match=message):
         model.solve(second_order=True, max_iterations=max_iterations)
 
-    assert tip.Ux == pytest.approx(tip_first.Ux, rel=1e-12)
-    assert model.Mzz_max == pytest.approx(first.Mzz_max, rel=1e-12)
-    assert model.solver.iterations == 0
-    member = next(iter(model.members.members.values()))
-    for submember in member.submembers.values():
+    assert model.results is first
+    assert tip.Ux == ux
+    assert model.Mzz_max == mzz
+    for submember, moment in zip(member.submembers.values(), moments):
+        assert submember.results['major axis moments'][0] == moment
         assert submember.second_order_axial == 0.0
 
 
@@ -626,31 +629,32 @@ def test_failed_first_order_solve_keeps_its_error(
         getattr(model, call)()
 
 
-def test_any_error_after_the_first_order_solution_updates_the_maxima(
+def test_any_error_during_the_iteration_leaves_the_previous_results(
         monkeypatch: pytest.MonkeyPatch):
-    # Whether the model holds results does not depend on the type of the
-    # error: a LinAlgError raised during the iteration also leaves the
-    # first-order solution, with its maxima.
-    first, _, _ = cantilever(-0.4 * P_CR, 1.0)
-    first.solve()
+    # Whether the model keeps its results does not depend on the type of
+    # the error: a LinAlgError raised during the iteration leaves them too.
+    model, _, _ = cantilever(-0.4 * P_CR, 1.0)
+    first = model.solve()
+    mzz = model.Mzz_max
 
     def fail(self: Solver, *args: object) -> None:
         raise np.linalg.LinAlgError("second-order failure")
     monkeypatch.setattr(Solver, "_second_order", fail)
-    model, _, _ = cantilever(-0.4 * P_CR, 1.0)
 
     with pytest.raises(np.linalg.LinAlgError):
         model.solve(second_order=True)
-    assert model.Mzz_max == pytest.approx(first.Mzz_max, rel=1e-12)
+    assert model.results is first
+    assert model.Mzz_max == mzz
 
 
-def test_interrupted_analysis_leaves_the_first_order_solution(
+def test_interrupted_analysis_leaves_the_previous_results(
         monkeypatch: pytest.MonkeyPatch):
     # Ctrl-C raises KeyboardInterrupt, which is not an Exception. An
     # analysis interrupted in its second iteration, after the first changed
-    # the displacements, still leaves the first-order solution.
-    first, _, tip_first = cantilever(-0.4 * P_CR, 1.0)
-    first.solve()
+    # the displacements, still leaves the results of the analysis before it.
+    model, _, tip = cantilever(-0.4 * P_CR, 1.0)
+    first = model.solve()
+    ux, mzz = tip.Ux, model.Mzz_max
 
     tangent_stiffness = SubMember.tangent_stiffness
     calls: list[float] = []
@@ -661,14 +665,13 @@ def test_interrupted_analysis_leaves_the_first_order_solution(
             raise KeyboardInterrupt
         return tangent_stiffness(self, Fx2)
     monkeypatch.setattr(SubMember, "tangent_stiffness", interrupt)
-    model, _, tip = cantilever(-0.4 * P_CR, 1.0)
 
     with pytest.raises(KeyboardInterrupt):
         model.solve(second_order=True)
     assert len(calls) == MESH + 1
-    assert tip.Ux == pytest.approx(tip_first.Ux, rel=1e-12)
-    assert model.Mzz_max == pytest.approx(first.Mzz_max, rel=1e-12)
-    assert model.solver.iterations == 0
+    assert model.results is first
+    assert tip.Ux == ux
+    assert model.Mzz_max == mzz
     member = next(iter(model.members.members.values()))
     for submember in member.submembers.values():
         assert submember.second_order_axial == 0.0

@@ -70,10 +70,9 @@ class Model():
         axial forces until the unbalanced load is below ``tolerance`` times
         the applied loads. Equilibrium is formulated on the undeformed
         geometry. The bowing of a member between its ends (P-delta) is
-        captured only if the member is meshed into several submembers. If
-        the second-order iteration fails or is interrupted, the model is
-        left holding the first-order solution; if the first-order analysis
-        fails, the model keeps the results of the previous analysis (if any).
+        captured only if the member is meshed into several submembers. An
+        analysis that fails or is interrupted raises, and the model keeps
+        the results of its previous analysis, if any.
 
         Args:
             second_order (bool, optional): Run a second-order (P-Delta)
@@ -95,17 +94,12 @@ class Model():
                 stiffness is singular.
         """
         self._prepare()
-        try:
-            self.solver.solve(
-                self.nodes, self.members, self.loads,
-                second_order=second_order,
-                tolerance=tolerance, max_iterations=max_iterations)
-        finally:
-            # A failed second-order analysis leaves the first-order solution;
-            # a failed first-order analysis leaves the previous results.
-            self._publish()
-        assert self.results is not None
-        return self.results
+        results = self.solver.solve(
+            self.nodes, self.members, self.loads,
+            second_order=second_order,
+            tolerance=tolerance, max_iterations=max_iterations)
+        self._publish(results)
+        return results
 
     def critical_load_factor(self) -> float:
         """Elastic critical load factor of the applied loads.
@@ -113,8 +107,8 @@ class Model():
         Returns the smallest positive factor lambda for which lambda times the
         applied loads is an elastic critical (buckling) load, from the
         eigenproblem ``[Ke + lambda Kg] {d} = 0`` with the geometric
-        stiffness Kg formed from the first-order axial forces. The model is
-        left holding the first-order solution under the applied loads.
+        stiffness Kg formed from the first-order axial forces. The results of
+        the model (``results``) are left as they were.
 
         Returns:
             float: The elastic critical load factor.
@@ -125,25 +119,28 @@ class Model():
                 twisting, or if the elastic stiffness is singular.
         """
         self._prepare()
-        try:
-            return self.solver.critical_load_factor(
-                self.nodes, self.members, self.loads)
-        finally:
-            # The model holds the first-order solution, unless that failed.
-            self._publish()
+        return self.solver.critical_load_factor(
+            self.nodes, self.members, self.loads)
 
-    def _publish(self) -> None:
-        """Keep the solver's results and copy them onto the old attributes.
+    def _publish(self, results: Results) -> None:
+        """Keep the results of a solve and copy them onto the old attributes.
 
-        Temporary, while the node and model result attributes are replaced
-        by ``results``: copies each node's displacements and reactions onto
-        the node, and the maxima onto the model. Does nothing if the solver
-        holds no results.
+        Temporary, while the old result attributes are replaced by
+        ``results``: copies each node's displacements and reactions onto the
+        node, each submember's end displacements, end forces, load
+        intensities and axial force onto the submember, and the maxima onto
+        the model.
         """
-        results = self.solver.results
-        if results is None:
-            return
         self.results = results
+        for member in results.members:
+            for sub in member.submembers:
+                live = sub.submember
+                live.results['displacements'] = sub.displacements.tolist()
+                for key in FORCE_KEYS:
+                    live.results[key] = list(sub.forces[key])
+                live.results['w_major'] = list(sub.w_major)
+                live.results['w_minor'] = list(sub.w_minor)
+                live.second_order_axial = sub.second_order_axial
         for node in self.nodes.nodes.values():
             r = results.node(node)
             node.Ux, node.Uy, node.Uz = r.Ux, r.Uy, r.Uz

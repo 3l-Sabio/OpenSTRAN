@@ -112,8 +112,9 @@ class SubMemberResult:
 
     @classmethod
     def from_submember(cls, submember: SubMember) -> SubMemberResult:
-        """The results of a submember's current state, as the solver left
-        it.
+        """The results of a submember, from the old result attributes that
+        ``Model.solve`` copies onto it. Used by the old result methods
+        (``SubMember.moment_major`` and the others) until they are removed.
 
         Args:
             submember (SubMember): The submember.
@@ -297,7 +298,10 @@ class MemberResult:
 
     @classmethod
     def from_member(cls, member: Member) -> MemberResult:
-        """The results of a member's current state, as the solver left it.
+        """The results of a member, from the old result attributes that
+        ``Model.solve`` copies onto its submembers. Used by the old result
+        methods (``Member.moment`` and ``Member.shear``) until they are
+        removed.
 
         Args:
             member (Member): The member.
