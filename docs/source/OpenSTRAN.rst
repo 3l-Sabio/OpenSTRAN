@@ -13,6 +13,14 @@ OpenSTRAN.Coordinates module
    :undoc-members:
    :no-index:
 
+OpenSTRAN.Loads module
+----------------------
+
+.. automodule:: OpenSTRAN.Loads
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 OpenSTRAN.Model module
 ----------------------
 
@@ -57,6 +65,14 @@ OpenSTRAN.Nodes module
    :show-inheritance:
    :undoc-members:
    :no-index:
+
+OpenSTRAN.Results module
+------------------------
+
+.. automodule:: OpenSTRAN.Results
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 OpenSTRAN.Solver module
 -----------------------

@@ -47,13 +47,13 @@ Analysis Parameters
 
 * **mesh**: Number of submember divisions
 * **bracing**: Lateral bracing configuration
-* **Cb**: Lateral-torsional buckling coefficient (calculated)
 
 Internal Structure
 ^^^^^^^^^^^^^^^^^^
 
 * **count**: Number of submembers created
-* **submembers**: Dictionary of :class:`SubMember` objects
+* **submembers**: Dictionary of :class:`SubMember` objects, created when the
+  model is first solved
 
 Basic Usage
 -----------
@@ -106,14 +106,19 @@ Boundary Conditions
 Member Discretization
 ---------------------
 
-Members are automatically divided into submembers for analysis:
+Members are automatically divided into submembers when the model is first
+solved, so that the nodes created by loads are part of the mesh.
+``M1.add_node(50)`` adds a node at midspan, or returns the node already
+there; added before the first solve, it becomes part of the mesh, and its
+displacements can be read from the results.
 
 .. code-block:: python
 
    # Create member with 20 submembers
    M1 = model.members.add_member(N1, N2, mesh=20)
-
    print(f"Member length: {M1.length:.1f} inches")
+
+   model.solve()
    print(f"Number of submembers: {M1.count}")
 
    # Access individual submembers
@@ -145,16 +150,23 @@ Members can have different lateral bracing configurations affecting buckling:
 Buckling Analysis
 -----------------
 
-The lateral-torsional buckling coefficient Cb is automatically calculated:
+The lateral-torsional buckling coefficient Cb is calculated from the moments
+of an analysis, with the member's bracing:
 
 .. code-block:: python
 
-   # After solving the model
-   model.solve()
+   results = model.solve()
 
    # Calculate Cb for buckling analysis
-   cb_value = M1.calculate_Cb()
+   cb_value = results.member(M1).calculate_Cb()
    print(f"Cb coefficient: {cb_value:.3f}")
+
+Known issue: Cb is computed from moments interpolated linearly between mesh
+nodes. It is wrong when a quarter point of an unbraced span falls on a mesh
+node, and it raises an ``IndexError`` for a member whose start node has the
+larger coordinates, for ``bracing=[]``, or for a member shorter than 18 in
+with the default ``'continuous'`` bracing. A member with no major-axis
+moment gives ``nan``, with a ``RuntimeWarning``.
 
 Applying Loads
 --------------
@@ -167,10 +179,14 @@ Loads are applied to members through various methods:
    M1.add_distributed_load(-1/12, -1/12, 'Y', 0, 100)  # 1 kip/ft (1/12 kip/in) downward
 
    # Point load at specific location
-   M1.add_point_load(5.0, 'Y', 50)  # 5 kips downward at midspan
+   M1.add_point_load(-5.0, 'Y', 50)  # 5 kips downward at midspan
 
-   # Moment load
-   M1.add_moment_load(10.0, 25)  # 10 kip-ft at 25% of length
+Moments are applied to nodes with ``Node.add_load``.
+Member loads are recorded in the model's loads (``model.loads``) and applied
+each time the model is solved. Directions are global (``'X'``, ``'Y'``,
+``'Z'``) or local to the member (``'x'``, ``'y'``, ``'z'``); any other value
+raises a ``ValueError``. ``M1.add_point_load(-5.0, 'Y', 50)`` is the same as
+``model.loads.add_point_load(M1, -5.0, 'Y', 50)``.
 
 Cross-Section Properties
 ------------------------
@@ -210,21 +226,30 @@ Custom Properties
 Analysis Results
 ----------------
 
-After solving, member results are available through submembers:
+``model.solve()`` returns the results of the analysis, which give each
+member's internal forces along its span and the end forces of its
+submembers:
 
 .. code-block:: python
 
-   model.solve()
+   results = model.solve()
+   member = results.member(M1)
 
-   # Access results from submembers
-   for submember in M1.submembers.values():
-       axial = submember.results['axial']
-       shear = submember.results['shear']
-       moment = submember.results['major axis moments']
+   # Internal forces at a location along the span, in percent
+   print(f"Moment at midspan: {member.moment(50):.2f} kip-in")
+   print(f"Shear at quarter span: {member.shear(25):.2f} kips")
+
+   # End forces of each submember, (i end, j end)
+   for sub in member.submembers:
+       axial = sub.forces['axial']
+       shear = sub.forces['shear']
+       moment = sub.forces['major axis moments']
 
        print(f"Axial force: {axial[0]:.2f} kips")
        print(f"Shear force: {shear[0]:.2f} kips")
        print(f"Moment: {moment[0]:.2f} kip-in")
+
+See the Results section of the model documentation for the other values.
 
 Properties Access
 -----------------
@@ -248,8 +273,10 @@ Units
 Performance Notes
 -----------------
 
-* Higher mesh values increase accuracy but slow analysis
-* Submembers are created automatically during initialization
+* Higher mesh values slow analysis. Internal forces are exact between mesh
+  nodes, but displacements (and so ``Uy_max``) are found only at nodes, and
+  second-order results and Cb depend on the mesh
+* Submembers are created when the model is first solved
 
 See Also
 --------
@@ -258,3 +285,4 @@ See Also
 * :class:`OpenSTRAN.Submember.SubMember`: Individual submember class
 * :class:`OpenSTRAN.Database.Shape.Shape`: Cross-section database
 * :class:`OpenSTRAN.Model.Model`: Main model class
+* :class:`OpenSTRAN.Results.MemberResult`: Results of a member

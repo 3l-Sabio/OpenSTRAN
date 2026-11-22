@@ -132,14 +132,18 @@ Nodes are automatically assigned sequential IDs starting from 1:
 Mesh Nodes
 ----------
 
-Internal mesh nodes are created automatically during member discretization:
+Internal mesh nodes are created automatically when members are
+discretized, at the first solve. Point and distributed loads create mesh
+nodes at their locations when they are added, so that the mesh includes
+them:
 
 .. code-block:: python
 
-   # Add a member (automatically creates mesh nodes)
    M1 = model.members.add_member(N1, N2, mesh=10)  # 10 mesh divisions
 
-   # Mesh nodes are marked with mesh_node=True
+   # Solving the model meshes the member; mesh nodes are marked with
+   # mesh_node=True
+   model.solve()
    mesh_count = sum(1 for node in model.nodes.nodes.values() if node.mesh_node)
    print(f"Mesh nodes created: {mesh_count}")
 
