@@ -117,8 +117,13 @@ def test_printed_reactions_in_a_plane_model(
     assert (f'\tNode {prop.node_ID}:\n\t\tRx = 0.00 kips\n\t\tRy = 2.00 kips'
             in out)
 
+    # A node added after the analysis has no reactions to print.
+    later = model.nodes.add_node(2*L, 0, 0)
+    model.reactions()
+    assert f'\tNode {later.node_ID}:' not in capsys.readouterr().out
 
-def test_maxima_before_a_solve_raise():
+
+def test_reactions_before_a_solve_raise():
     model = Model()
     base = model.nodes.add_node(0, 0, 0)
     tip = model.nodes.add_node(L, 0, 0)
@@ -126,10 +131,8 @@ def test_maxima_before_a_solve_raise():
     model.members.add_member(base, tip, E=E, Ixx=I, Iyy=I, mesh=MESH)
     tip.add_load(-P, 'force', 'Y')
 
-    for method in (model.maxReactions, model.maxMbrForces,
-                   model.max_deflection):
-        with pytest.raises(RuntimeError, match='solve'):
-            method()
+    with pytest.raises(RuntimeError, match='solve'):
+        model.reactions()
 
 
 def test_maxima_need_no_extra_call():
@@ -141,7 +144,7 @@ def test_maxima_need_no_extra_call():
     tip.add_load(-P, 'force', 'Y')
 
     results = model.solve()
-    # No max_deflection() call is needed, unlike the model attributes.
+    # The maxima are there without another call.
     assert results.Uy_max == pytest.approx(P*L**3/(3*E*I))
     assert results.Ux_max == 0.0
     assert results.Ry_max == pytest.approx(P)
@@ -344,8 +347,7 @@ def test_results_list_the_members_of_the_analysis():
     assert len(results.members) == 2
     with pytest.raises(KeyError):
         results.member(later)
-    model.maxMbrForces()   # the model maxima still come from the results
-    assert model.Mzz_max == pytest.approx(P*L)
+    assert results.Mzz_max == pytest.approx(P*L)
 
 
 def test_node_or_member_outside_the_analysis_raises():
@@ -384,7 +386,7 @@ def test_second_order_results():
     first = model.solve()
     second = model.solve(second_order=True)
     assert second.second_order is True
-    assert second.iterations == model.solver.iterations > 0
+    assert second.iterations > 0
     assert first.second_order is False and first.iterations == 0
     # P-Delta amplifies the tip deflection.
     assert abs(second.node(tip).Uy) > abs(first.node(tip).Uy)
@@ -410,12 +412,11 @@ def test_interrupt_while_collecting_results_leaves_the_previous_results(
     base = model.nodes.add_node(0, 0, 0)
     tip = model.nodes.add_node(L, 0, 0)
     base.restraint = [1, 1, 1, 1, 1, 1]
-    member = model.members.add_member(
+    model.members.add_member(
         base, tip, E=E, Ixx=I, Iyy=I, A=10.0, J=50.0, mesh=8)
     tip.add_load(-P, 'force', 'Y')
     tip.add_load(-50.0, 'force', 'X')   # compression
     first = model.solve()
-    uy = tip.Uy
 
     collect = Solver._results
 
@@ -429,9 +430,6 @@ def test_interrupt_while_collecting_results_leaves_the_previous_results(
     with pytest.raises(KeyboardInterrupt):
         model.solve(second_order=True)
     assert model.results is first
-    assert tip.Uy == uy
-    for submember in member.submembers.values():
-        assert submember.second_order_axial == 0.0
 
 
 def test_a_failed_solve_keeps_the_previous_results():
@@ -448,10 +446,8 @@ def test_a_failed_solve_keeps_the_previous_results():
     with pytest.raises(RuntimeError, match='did not converge'):
         model.solve(second_order=True, max_iterations=1)
     assert model.results is None
-    assert tip.Uy == 0.0
 
-    # A failed first-order solve keeps second-order results, and the old
-    # attributes still agree with them.
+    # A failed first-order solve keeps second-order results.
     second = model.solve(second_order=True)
     moment = second.member(member).moment(45)
     tip.add_load(math.nan, 'force', 'Z')
@@ -459,9 +455,6 @@ def test_a_failed_solve_keeps_the_previous_results():
         model.solve()
     assert model.results is second
     assert second.member(member).moment(45) == moment
-    assert member.moment(45) == moment
-    for submember in member.submembers.values():
-        assert submember.second_order_axial == pytest.approx(-50.0)
 
 
 def test_critical_load_factor_leaves_the_results(
@@ -470,7 +463,7 @@ def test_critical_load_factor_leaves_the_results(
     base = model.nodes.add_node(0, 0, 0)
     tip = model.nodes.add_node(L, 0, 0)
     base.restraint = [1, 1, 1, 1, 1, 1]
-    member = model.members.add_member(
+    model.members.add_member(
         base, tip, E=E, Ixx=I, Iyy=I, A=10.0, J=50.0, mesh=8)
     tip.add_load(-P, 'force', 'Y')
     tip.add_load(-50.0, 'force', 'X')   # compression
@@ -481,14 +474,10 @@ def test_critical_load_factor_leaves_the_results(
         patch.setattr(Solver, '_results', no_results)
         factor = model.critical_load_factor()
     assert model.results is None
-    assert tip.Uy == 0.0
 
     second = model.solve(second_order=True)
-    uy, moment = tip.Uy, member.moment(45)
     assert model.critical_load_factor() == factor
     assert model.results is second
-    assert tip.Uy == uy
-    assert member.moment(45) == moment
 
 
 def test_moments_and_shears_along_a_member():
@@ -537,6 +526,32 @@ def test_moments_and_shears_along_a_member():
     assert results.Myy_max == pytest.approx(wz*L**2/8)
     assert results.Vy_max == pytest.approx(wy*L/2)
     assert results.Vz_max == pytest.approx(wz*L/2)
+
+
+def test_lateral_torsional_buckling_coefficient():
+    # A simply supported beam, braced at midspan. Quarter points fall
+    # between the mesh nodes of three submembers.
+    def cb(uniform: bool, bracing: str) -> float:
+        model = Model()
+        a = model.nodes.add_node(0, 0, 0)
+        b = model.nodes.add_node(L, 0, 0)
+        a.restraint = [1, 1, 1, 1, 0, 0]
+        b.restraint = [0, 1, 1, 0, 0, 0]
+        member = model.members.add_member(
+            a, b, E=E, Ixx=I, Iyy=I, mesh=3, bracing=bracing)
+        a.add_load(100.0, 'moment', 'Z')
+        if uniform:
+            b.add_load(-100.0, 'moment', 'Z')
+        return model.solve().member(member).calculate_Cb()
+
+    # A moment at one end falls linearly to zero. The first unbraced half
+    # has quarter-point moments of 7/8, 3/4 and 5/8 of the largest, so
+    # Cb = 12.5/(2.5 + 3*7/8 + 4*3/4 + 3*5/8) = 1.25.
+    assert cb(uniform=False, bracing='midspan') == pytest.approx(1.25)
+    # A uniform moment gives 1, however the beam is braced.
+    assert cb(uniform=True, bracing='third') == pytest.approx(1.0)
+    with pytest.raises(ValueError, match='midspan'):
+        cb(uniform=False, bracing='none')
 
 
 def test_unknown_axis_raises():

@@ -31,48 +31,47 @@ class TestSimpleColumn:
 
         cls.M1.add_distributed_load(-w, -w, axis, 0, 100)
 
-        cls.test_model.solve()
-        cls.test_model.max_deflection()
+        cls.results = cls.test_model.solve()
 
     def test_max_moment(self, w: float, L: float, axis: str):
         expected = w * L ** 2 / 8
         if axis == "X":
-            assert self.test_model.Mzz_max == pytest.approx(expected)
+            assert self.results.Mzz_max == pytest.approx(expected)
         else:
-            assert self.test_model.Myy_max == pytest.approx(expected)
+            assert self.results.Myy_max == pytest.approx(expected)
 
     def test_max_shear(self, w: float, L: float, axis: str):
         expected = w * L / 2
         if axis == "X":
-            assert self.test_model.Vy_max == pytest.approx(expected)
+            assert self.results.Vy_max == pytest.approx(expected)
         else:
-            assert self.test_model.Vz_max == pytest.approx(expected)
+            assert self.results.Vz_max == pytest.approx(expected)
 
     def test_max_reaction(self, w: float, L: float, axis: str):
         expected = w * L / 2
         if axis == "X":
-            assert self.test_model.Rx_max == pytest.approx(expected)
+            assert self.results.Rx_max == pytest.approx(expected)
         else:
-            assert self.test_model.Rz_max == pytest.approx(expected)
+            assert self.results.Rz_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, L: float, axis: str):
         if axis == "X":
             expected = 5 * w * L ** 4 / (384 * self.E * self.shape.Ix)
-            assert self.test_model.Ux_max == pytest.approx(expected, rel=1e-3)
+            assert self.results.Ux_max == pytest.approx(expected, rel=1e-3)
         else:
             expected = 5 * w * L ** 4 / (384 * self.E * self.shape.Iy)
-            assert self.test_model.Uz_max == pytest.approx(expected, rel=1e-3)
+            assert self.results.Uz_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float, axis: str):
         expected = w * L / 2
         if axis == "X":
-            assert self.N1.Rx == pytest.approx(expected)
+            assert self.results.node(self.N1).Rx == pytest.approx(expected)
         else:
-            assert self.N1.Rz == pytest.approx(expected)
+            assert self.results.node(self.N1).Rz == pytest.approx(expected)
 
     def test_node_reaction_2(self, w: float, L: float, axis: str):
         expected = w * L / 2
         if axis == "X":
-            assert self.N2.Rx == pytest.approx(expected)
+            assert self.results.node(self.N2).Rx == pytest.approx(expected)
         else:
-            assert self.N2.Rz == pytest.approx(expected)
+            assert self.results.node(self.N2).Rz == pytest.approx(expected)

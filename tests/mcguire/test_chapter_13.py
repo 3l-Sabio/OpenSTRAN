@@ -104,13 +104,15 @@ class TestExample13_11_SymmetricGableFrame:
                 b.add_load(5.0, 'force', 'X')
                 d.add_load(5.0, 'force', 'X')
 
-            model.solve()
+            results = model.solve()
 
+            # The nodes, and their displacements and reactions, by name.
             nodes = {'a': a, 'b': b, 'c': c, 'd': d, 'e': e}
+            solved = {name: results.node(node) for name, node in nodes.items()}
             if symmetric:
-                cls.symmetric = nodes
+                cls.symmetric, cls.symmetric_nodes = solved, nodes
             else:
-                cls.antisymmetric = nodes
+                cls.antisymmetric, cls.antisymmetric_nodes = solved, nodes
 
     def test_symmetric_part(self):
         b, c = self.symmetric['b'], self.symmetric['c']
@@ -148,7 +150,8 @@ class TestExample13_11_SymmetricGableFrame:
         # reactions at the supports a and e are summed, against the loads as
         # written here, so a load that the solver lost or misapplied fails
         # here. Moments are taken about a, the origin.
-        nodes = self.symmetric if symmetric else self.antisymmetric
+        nodes = self.symmetric_nodes if symmetric else self.antisymmetric_nodes
+        solved = self.symmetric if symmetric else self.antisymmetric
         if symmetric:
             loads = [('c', 0.0, -10.0)]  # joint, Fx, Fy (kN)
         else:
@@ -160,11 +163,12 @@ class TestExample13_11_SymmetricGableFrame:
             sum_fx += fx
             sum_fy += fy
             sum_mz += x * fy - y * fx
-        for node in (nodes['a'], nodes['e']):
-            x, y = node.coordinates.x, node.coordinates.y
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += node.Rmz + x * node.Ry - y * node.Rx
+        for name in ('a', 'e'):
+            x, y = nodes[name].coordinates.x, nodes[name].coordinates.y
+            r = solved[name]
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += r.Rmz + x * r.Ry - y * r.Rx
 
         assert sum_fx == pytest.approx(0, abs=1e-9 * 10)
         assert sum_fy == pytest.approx(0, abs=1e-9 * 10)

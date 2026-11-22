@@ -57,8 +57,7 @@ class TestPortalFrame:
 
         cls.M2.add_distributed_load(-w, -w, "Y", 0, 100)
 
-        cls.test_model.solve()
-        cls.test_model.max_deflection()
+        cls.results = cls.test_model.solve()
 
     def thrust(self, w: float, h: float, L: float) -> float:
         # horizontal reaction at each base, in kips
@@ -69,19 +68,19 @@ class TestPortalFrame:
         knee = self.thrust(w, h, L) * h      # at the top of each column
         midspan = w * L ** 2 / 8 - knee      # at the center of the beam
         expected = max(knee, midspan)
-        assert self.test_model.Mzz_max == pytest.approx(expected, rel=1e-2)
+        assert self.results.Mzz_max == pytest.approx(expected, rel=1e-2)
 
     def test_max_shear(self, w: float, L: float):
         expected = w * L / 2  # at each end of the beam
-        assert self.test_model.Vy_max == pytest.approx(expected)
+        assert self.results.Vy_max == pytest.approx(expected)
 
     def test_max_axial(self, w: float, L: float):
         expected = w * L / 2  # in each column
-        assert self.test_model.axial_max == pytest.approx(expected)
+        assert self.results.axial_max == pytest.approx(expected)
 
     def test_max_reaction(self, w: float, L: float):
         expected = w * L / 2
-        assert self.test_model.Ry_max == pytest.approx(expected)
+        assert self.results.Ry_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, h: float, L: float):
         knee = self.thrust(w, h, L) * h       # kip-in
@@ -91,28 +90,31 @@ class TestPortalFrame:
         # moments at the knees, plus the shortening of the columns
         expected = 5 * w * L ** 4 / (384 * ei) - knee * L ** 2 / (8 * ei) \
             + column_load * h / (self.E * self.shape.A)
-        assert self.test_model.Uy_max == pytest.approx(expected, rel=1e-2)
+        assert self.results.Uy_max == pytest.approx(expected, rel=1e-2)
 
     def test_node_reaction_1(self, w: float, L: float):
         expected = w * L / 2
-        assert self.N1.Ry == pytest.approx(expected)
+        assert self.results.node(self.N1).Ry == pytest.approx(expected)
 
     def test_node_reaction_4(self, w: float, L: float):
         expected = w * L / 2
-        assert self.N4.Ry == pytest.approx(expected)
+        assert self.results.node(self.N4).Ry == pytest.approx(expected)
 
     def test_horizontal_thrust(self, w: float, h: float, L: float):
         expected = self.thrust(w, h, L)
         # the bases are pushed outward, so the supports push back inward
-        assert self.N1.Rx == pytest.approx(expected, rel=1e-2)
-        assert self.N4.Rx == pytest.approx(-expected, rel=1e-2)
+        assert self.results.node(self.N1).Rx == pytest.approx(
+            expected, rel=1e-2)
+        assert self.results.node(self.N4).Rx == pytest.approx(
+            -expected, rel=1e-2)
 
     def test_equilibrium(self, w: float, L: float):
         # the reactions balance the applied load
-        assert self.N1.Rx + self.N4.Rx == pytest.approx(0, abs=1e-6)
-        assert self.N1.Ry + self.N4.Ry == pytest.approx(w * L)
+        n1, n4 = self.results.node(self.N1), self.results.node(self.N4)
+        assert n1.Rx + n4.Rx == pytest.approx(0, abs=1e-6)
+        assert n1.Ry + n4.Ry == pytest.approx(w * L)
 
     def test_no_base_moment(self):
         # pinned bases carry no moment
-        assert self.N1.Rmz == pytest.approx(0, abs=1e-6)
-        assert self.N4.Rmz == pytest.approx(0, abs=1e-6)
+        assert self.results.node(self.N1).Rmz == pytest.approx(0, abs=1e-6)
+        assert self.results.node(self.N4).Rmz == pytest.approx(0, abs=1e-6)
