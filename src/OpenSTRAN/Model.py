@@ -1,5 +1,6 @@
 import numpy as np
 
+from .Loads import Loads
 from .Node import PLANE_RESTRAINTS, Node
 from .Nodes import Nodes
 from .Members import Members
@@ -21,6 +22,9 @@ class Model():
             three-dimensional.
         nodes (Nodes): Collection of nodes in the structure.
         members (Members): Collection of members (elements) in the structure.
+        loads (Loads): The loads applied to the structure, added with
+            ``Node.add_load``, ``Member.add_point_load`` and
+            ``Member.add_distributed_load``.
         solver (Solver): Solver instance for performing structural analysis.
         results (Results | None): Results of the last analysis, or None
             before the first.
@@ -39,7 +43,8 @@ class Model():
             plane (str | None, optional): Plane constraint for 2D models ('xy', 'yz',
                 or 'zx'). Defaults to None for 3D models.
         """
-        self.nodes = Nodes(plane)
+        self.loads = Loads()
+        self.nodes = Nodes(plane, loads=self.loads)
         self.members = Members(self.nodes)
         self.solver = Solver()
         self.results: Results | None = None
@@ -92,7 +97,8 @@ class Model():
         self._prepare()
         try:
             self.solver.solve(
-                self.nodes, self.members, second_order=second_order,
+                self.nodes, self.members, self.loads,
+                second_order=second_order,
                 tolerance=tolerance, max_iterations=max_iterations)
         finally:
             # A failed second-order analysis leaves the first-order solution;
@@ -120,7 +126,8 @@ class Model():
         """
         self._prepare()
         try:
-            return self.solver.critical_load_factor(self.nodes, self.members)
+            return self.solver.critical_load_factor(
+                self.nodes, self.members, self.loads)
         finally:
             # The model holds the first-order solution, unless that failed.
             self._publish()
@@ -147,7 +154,7 @@ class Model():
         self.maxMbrForces()
 
     def _prepare(self) -> None:
-        """Mesh each member and apply its deferred loads.
+        """Mesh each member.
 
         Meshing is deferred to this point so that nodes created by loads are
         included in the member mesh.

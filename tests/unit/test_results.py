@@ -219,6 +219,34 @@ def test_results_do_not_change_when_the_model_is_solved_again():
         first.member(member).submembers[-1].displacements, displacements)
 
 
+def test_results_keep_their_span_loads_when_a_load_is_added():
+    # A distributed load added after a solve counts in the next solve, and
+    # the earlier results keep the span loads they were solved with.
+    w1, w2 = 0.1, 0.05   # kips per inch, in -Y
+    model = Model()
+    base = model.nodes.add_node(0, 0, 0)
+    tip = model.nodes.add_node(L, 0, 0)
+    base.restraint = [1, 1, 1, 1, 1, 1]
+    member = model.members.add_member(
+        base, tip, E=E, Ixx=I, Iyy=I, mesh=MESH)
+    member.add_distributed_load(-w1, -w1, 'Y', 0, 100)
+
+    first = model.solve()
+    member.add_distributed_load(-w2, -w2, 'Y', 0, 50)   # ends at a mesh node
+    second = model.solve()
+
+    x = 0.4*L   # inside the second of four submembers
+    assert first.member(member).moment(40) == pytest.approx(
+        w1*(L - x)**2/2)
+    assert second.member(member).moment(40) == pytest.approx(
+        w1*(L - x)**2/2 + w2*(L/2 - x)**2/2)
+    assert [w for sub in first.member(member).submembers
+            for w in sub.w_major] == pytest.approx([-w1]*8)
+    assert [w for sub in second.member(member).submembers
+            for w in sub.w_major] == pytest.approx([-w1 - w2]*4 + [-w1]*4)
+    assert len(model.loads.distributed) == 2
+
+
 def test_results_keep_the_mesh_they_were_solved_with():
     model = Model()
     base = model.nodes.add_node(0, 0, 0)

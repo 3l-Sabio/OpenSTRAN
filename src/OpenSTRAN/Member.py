@@ -67,8 +67,6 @@ class Member():
     count: int = 0
     submembers: dict[int, SubMember] = field(
         default_factory=dict[int, SubMember])
-    point_loads: list = field(default_factory=list, init=False)
-    distributed_loads: list = field(default_factory=list, init=False)
     _prepared: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
@@ -79,7 +77,7 @@ class Member():
         self.length = self.calculate_length(self.node_i, self.node_j)
 
     def prepare(self) -> None:
-        """Generate the member mesh and apply deferred loads.
+        """Generate the member mesh, once.
 
         Called by :meth:`OpenSTRAN.Model.Model.solve` prior to assembling the
         global stiffness matrix. Meshing is deferred until this point so that
@@ -89,8 +87,6 @@ class Member():
         if self._prepared:
             return
         self.generate_mesh()
-        for load in self.distributed_loads:
-            self._apply_distributed_load(*load)
         self._prepared = True
 
     def generate_mesh(self) -> None:
@@ -482,8 +478,9 @@ class Member():
         """Apply a concentrated point load to the member as a nodal load.
 
         Ensures a node exists at the load location, creating one if the load
-        does not land on an existing node, and applies the load directly to
-        that node.
+        does not land on an existing node, and records the load in the
+        model's loads (``Model.loads``). It is applied to that node when the
+        model is solved.
 
         Args:
             mag (float): Magnitude of the load in kips.
@@ -494,76 +491,47 @@ class Member():
         Raises:
             ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
-        # Create (or reuse) a node at the load location along the member.
-        node = self._node_at_fraction(location/100)
-
-        # Resolve the load into global X, Y, Z components.
-        if direction in ('X', 'Y', 'Z'):
-            fg = np.array([
-                mag if direction == 'X' else 0.0,
-                mag if direction == 'Y' else 0.0,
-                mag if direction == 'Z' else 0.0,
-            ])
-        elif direction in ('x', 'y', 'z'):
-            local = np.array([
-                mag if direction == 'x' else 0.0,
-                mag if direction == 'y' else 0.0,
-                mag if direction == 'z' else 0.0,
-            ])
-            fg = self._local_axes() @ local
-        else:
+        if direction not in ('X', 'Y', 'Z', 'x', 'y', 'z'):
             raise ValueError(
                 "Load direction must be global ('X', 'Y', 'Z') or local ('x', 'y', 'z')."
             )
 
-        # Apply the load directly to the node as a nodal load.
-        node.Fx += fg[0]
-        node.Fy += fg[1]
-        node.Fz += fg[2]
+        # Create (or reuse) a node at the load location along the member.
+        node = self._node_at_fraction(location/100)
+        self.nodes.loads.add_point_load(self, mag, direction, location, node)
 
-        # Mirror the load into the node's equivalent-action accumulators, which
-        # record the loads a node receives from its members. The solver takes
-        # reactions from Fx, Fy and Fz above.
-        node.eFx += fg[0]
-        node.eFy += fg[1]
-        node.eFz += fg[2]
+    def point_load_vector(self, mag: float, direction: str) -> np.ndarray:
+        """Global X, Y and Z components of a point load on the member.
 
-        # Record the load for reference.
-        self.point_loads.append((mag, direction, location, node))
+        Args:
+            mag (float): Magnitude of the load in kips.
+            direction (str): Load direction - global ('X', 'Y', 'Z') or local
+                ('x', 'y', 'z').
+
+        Returns:
+            np.ndarray: The three global components, in kips.
+        """
+        if direction in ('X', 'Y', 'Z'):
+            return np.array([
+                mag if direction == 'X' else 0.0,
+                mag if direction == 'Y' else 0.0,
+                mag if direction == 'Z' else 0.0,
+            ])
+        local = np.array([
+            mag if direction == 'x' else 0.0,
+            mag if direction == 'y' else 0.0,
+            mag if direction == 'z' else 0.0,
+        ])
+        return self._local_axes() @ local
 
     def add_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
         """Apply a trapezoidal distributed load along the member.
 
         Creates nodes at the start and end of the loaded region (if they do not
-        already exist) so the load aligns with element boundaries, then defers
-        the load until the member is meshed at solve time. The load remains a
-        member (distributed) load applied via equivalent nodal actions in
-        :meth:`_apply_distributed_load`.
-
-        Args:
-            Mag1 (float): Start magnitude of the distributed load in kips per
-                inch.
-            Mag2 (float): End magnitude of the distributed load in kips per
-                inch.
-            direction (str): Load direction - global ('X', 'Y', 'Z') or local
-                ('x', 'y', 'z').
-            loc1 (float): Start location of load along member span as percentage
-                (0-100%).
-            loc2 (float): End location of load along member span as percentage
-                (0-100%).
-        """
-        # Ensure nodes exist at the start and end of the loaded region.
-        self._node_at_fraction(loc1/100)
-        self._node_at_fraction(loc2/100)
-
-        # Defer application until the member has been meshed at solve time.
-        self.distributed_loads.append((Mag1, Mag2, direction, loc1, loc2))
-
-    def _apply_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
-        """Distribute a trapezoidal load onto the member's submembers.
-
-        Computes equivalent nodal actions for each affected submember. Called by
-        :meth:`prepare` after the member has been meshed.
+        already exist) so the load aligns with element boundaries, and records
+        the load in the model's loads (``Model.loads``). Each solve applies it
+        to the submembers of the mesh through equivalent nodal actions (see
+        :meth:`distributed_load_actions`).
 
         Args:
             Mag1 (float): Start magnitude of the distributed load in kips per
@@ -580,6 +548,49 @@ class Member():
         Raises:
             ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
+        if direction not in ('X', 'Y', 'Z', 'x', 'y', 'z'):
+            raise ValueError(
+                "Force vector must be bound to a global or local axis."
+            )
+
+        # Ensure nodes exist at the start and end of the loaded region.
+        self._node_at_fraction(loc1/100)
+        self._node_at_fraction(loc2/100)
+
+        self.nodes.loads.add_distributed_load(
+            self, Mag1, Mag2, direction, loc1, loc2)
+
+    def distributed_load_actions(
+        self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float
+    ) -> list[tuple[SubMember, np.ndarray, tuple[float, float], tuple[float, float]]]:
+        """Equivalent nodal actions of a trapezoidal load on the submembers.
+
+        Called by the solver at each solve, after the member has been meshed.
+
+        Args:
+            Mag1 (float): Start magnitude of the distributed load in kips per
+                inch.
+            Mag2 (float): End magnitude of the distributed load in kips per
+                inch.
+            direction (str): Load direction - global ('X', 'Y', 'Z') or local
+                ('x', 'y', 'z').
+            loc1 (float): Start location of load along member span as percentage
+                (0-100%).
+            loc2 (float): End location of load along member span as percentage
+                (0-100%).
+
+        Returns:
+            list: For each submember the load lands on, a tuple of the
+            submember; its 12 equivalent nodal actions in local coordinates
+            (the fixed-end forces reversed, with any released ends condensed
+            out), as a 12x1 array; and the load intensities (i end, j end), in
+            kips per inch, in the major (local y) and minor (local z) planes.
+
+        Raises:
+            ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
+        """
+        actions: list[tuple[SubMember, np.ndarray, tuple[float, float], tuple[float, float]]] = []
+
         # Convert the start and end locations to absolute distance
         loc1 = self.length*(loc1/100)
         loc2 = self.length*(loc2/100)
@@ -737,57 +748,15 @@ class Member():
             # stiffness matrix.
             f_local = submbr.pin_vector(f_local)
 
-            # Transform the local force vector to the global reference plane
-            f_global: np.ndarray = submbr.rotation_matrix @ f_local
-
-            # Add the equivalent nodal forces and moments to each node
-            submbr.node_i.Fx += f_global[0, 0]
-            submbr.node_i.Fy += f_global[1, 0]
-            submbr.node_i.Fz += f_global[2, 0]
-            submbr.node_i.Mx += f_global[3, 0]
-            submbr.node_i.My += f_global[4, 0]
-            submbr.node_i.Mz += f_global[5, 0]
-            submbr.node_j.Fx += f_global[6, 0]
-            submbr.node_j.Fy += f_global[7, 0]
-            submbr.node_j.Fz += f_global[8, 0]
-            submbr.node_j.Mx += f_global[9, 0]
-            submbr.node_j.My += f_global[10, 0]
-            submbr.node_j.Mz += f_global[11, 0]
-
-            submbr.node_i.eFx += f_global[0, 0]
-            submbr.node_i.eFy += f_global[1, 0]
-            submbr.node_i.eFz += f_global[2, 0]
-            submbr.node_i.eMx += f_global[3, 0]
-            submbr.node_i.eMy += f_global[4, 0]
-            submbr.node_i.eMz += f_global[5, 0]
-            submbr.node_j.eFx += f_global[6, 0]
-            submbr.node_j.eFy += f_global[7, 0]
-            submbr.node_j.eFz += f_global[8, 0]
-            submbr.node_j.eMx += f_global[9, 0]
-            submbr.node_j.eMy += f_global[10, 0]
-            submbr.node_j.eMz += f_global[11, 0]
-
-            submbr.ENAs['axial'][0] += f_local[0, 0]
-            submbr.ENAs['axial'][1] += f_local[6, 0]
-            submbr.ENAs['shear'][0] += f_local[1, 0]
-            submbr.ENAs['shear'][1] += f_local[7, 0]
-            submbr.ENAs['transverse shear'][0] += f_local[2, 0]
-            submbr.ENAs['transverse shear'][1] += f_local[8, 0]
-            submbr.ENAs['minor axis moments'][0] += f_local[4, 0]
-            submbr.ENAs['minor axis moments'][1] += f_local[10, 0]
-            submbr.ENAs['major axis moments'][0] += f_local[5, 0]
-            submbr.ENAs['major axis moments'][1] += f_local[11, 0]
-
-            # Record the local distributed-load intensities at the submember
-            # ends so exact internal forces can be evaluated along the span.
-            # Each loaded submember is fully covered (nodes are placed at the
-            # load extents), so v1/t1 act at node i and v2/t2 act at node j.
-            submbr.w_major[0] += v1
-            submbr.w_major[1] += v2
-            submbr.w_minor[0] += t1
-            submbr.w_minor[1] += t2
+            # The local distributed-load intensities at the submember ends,
+            # from which the results evaluate exact internal forces along the
+            # span. Each loaded submember is fully covered (nodes are placed
+            # at the load extents), so v1/t1 act at node i and v2/t2 at node j.
+            actions.append((submbr, f_local, (v1, v2), (t1, t2)))
 
             l1 = l2
+
+        return actions
 
     def moment(self, location: float, axis: str = 'major') -> float:
         """Internal bending moment at a location along the member, in

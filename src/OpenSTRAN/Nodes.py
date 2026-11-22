@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field, asdict
 
 from .Coordinates import Coordinate
+from .Loads import Loads
 from .Node import Node
 from .Units import NODE_SNAP_TOLERANCE
 
@@ -18,6 +19,8 @@ class Nodes():
         x (list[float]): List of x-coordinates in inches.
         y (list[float]): List of y-coordinates in inches.
         z (list[float]): List of z-coordinates in inches.
+        loads (Loads): The model's loads, to which the nodes, and the
+            members that connect them, add their loads.
     """
     plane: str | None = None
     count: int = 0
@@ -25,6 +28,7 @@ class Nodes():
     x: list[float] = field(default_factory=list[float])
     y: list[float] = field(default_factory=list[float])
     z: list[float] = field(default_factory=list[float])
+    loads: Loads = field(default_factory=Loads)
 
     def properties(self) -> dict[str, Any]:
         """Return the dataclass properties as a dictionary.
@@ -66,6 +70,7 @@ class Nodes():
                 plane=self.plane,
                 mesh_node=mesh_node
             )
+            node._loads = self.loads
             self.nodes[self.count] = node
         return node
 

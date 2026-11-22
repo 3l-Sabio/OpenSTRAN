@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field, asdict
 
 from .Coordinates import Coordinate
+from .Loads import Loads
 
 from typing import Any
 
@@ -21,12 +22,6 @@ class Node():
         coordinates (Coordinate): The coordinate object defining the node's position.
         node_ID (int): Unique identifier for the node.
         mesh_node (bool): Indicates if this is a mesh node. Defaults to False.
-        Fx (float): Applied force in the x-direction in kips. Defaults to 0.0.
-        Fy (float): Applied force in the y-direction in kips. Defaults to 0.0.
-        Fz (float): Applied force in the z-direction in kips. Defaults to 0.0.
-        Mx (float): Applied moment about the x-axis in kip-in. Defaults to 0.0.
-        My (float): Applied moment about the y-axis in kip-in. Defaults to 0.0.
-        Mz (float): Applied moment about the z-axis in kip-in. Defaults to 0.0.
         restraint (list[int]): List of 6 integers indicating restrained degrees of freedom
             [Ux, Uy, Uz, φx, φy, φz]. Defaults to [0, 0, 0, 0, 0, 0].
         plane (str | None): The plane associated with the node. Defaults to None.
@@ -34,24 +29,12 @@ class Node():
     coordinates: Coordinate
     node_ID: int
     mesh_node: bool = False
-    Fx: float = 0.0
-    Fy: float = 0.0
-    Fz: float = 0.0
-    Mx: float = 0.0
-    My: float = 0.0
-    Mz: float = 0.0
     Ux: float = 0.0
     Uy: float = 0.0
     Uz: float = 0.0
     phi_x: float = 0.0
     phi_y: float = 0.0
     phi_z: float = 0.0
-    eFx: float = 0.0
-    eFy: float = 0.0
-    eFz: float = 0.0
-    eMx: float = 0.0
-    eMy: float = 0.0
-    eMz: float = 0.0
     Rx: float = 0.0
     Ry: float = 0.0
     Rz: float = 0.0
@@ -60,6 +43,9 @@ class Node():
     Rmz: float = 0.0
     plane: str | None = None
     restraint: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0, 0])
+    # The model's loads, which add_load adds to; set by Nodes.add_node.
+    _loads: Loads | None = field(
+        default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Set default restraints based on the plane constraint.
@@ -111,22 +97,23 @@ class Node():
     def add_load(self, mag: float, lType: str = 'moment', direction: str = 'y') -> None:
         """Add a load to the node.
 
+        The load is recorded in the model's loads (``Model.loads``) and
+        applied when the model is solved.
+
         Args:
             mag (float): Magnitude of the load. Units are kips for forces and kip-in for moments.
             lType (str, optional): Type of load. Either 'moment' or 'force'. Defaults to 'moment'.
             direction (str, optional): Direction of the load. 'X', 'Y', or 'Z'. Defaults to 'y'.
+
+        Raises:
+            RuntimeError: If the node was not added to a model with
+                ``Nodes.add_node``.
         """
-        if lType == 'moment':
-            if direction == 'X':
-                self.Mx += mag
-            if direction == 'Y':
-                self.My += mag
-            if direction == 'Z':
-                self.Mz += mag
-        else:
-            if direction == 'X':
-                self.Fx += mag
-            if direction == 'Y':
-                self.Fy += mag
-            if direction == 'Z':
-                self.Fz += mag
+        if direction not in ('X', 'Y', 'Z'):
+            return
+        if self._loads is None:
+            raise RuntimeError(
+                "The node belongs to no model: add nodes with "
+                "Nodes.add_node.")
+        self._loads.add_nodal_load(
+            self, mag, 'moment' if lType == 'moment' else 'force', direction)

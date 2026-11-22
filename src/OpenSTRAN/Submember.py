@@ -28,8 +28,11 @@ class SubMember():
         A (float): Cross-sectional area.
         G (float): Shear modulus.
         J (float): Polar moment of inertia.
-        ENAs (dict[str, list[float]]): Equivalent nodal actions.
-        results (dict[str, list[float]]): Analysis results storage.
+        results (dict[str, list[float]]): Analysis results storage: the end
+            displacements and end forces of the last solve, and the
+            distributed-load intensities it applied (``w_major`` and
+            ``w_minor``, i end and j end, in kips per inch, in the major
+            (local y) and minor (local z) planes).
         length (float): Submember length in inches (computed).
         rotation_matrix (np.ndarray): Rotation matrix from local to global coordinates.
         transformation_matrix (np.ndarray): Transformation matrix for coordinate conversion.
@@ -47,8 +50,6 @@ class SubMember():
     A: float
     G: float
     J: float
-    ENAs: dict[str, list[float]] = field(
-        default_factory=dict[str, list[float]])
     results: dict[str, list[float]] = field(
         default_factory=dict[str, list[float]])
     length: float = field(init=False)
@@ -56,8 +57,6 @@ class SubMember():
     transformation_matrix: np.ndarray = field(init=False)
     Kl_unreleased: np.ndarray = field(init=False)
     Kl: np.ndarray = field(init=False)
-    w_major: list[float] = field(init=False)
-    w_minor: list[float] = field(init=False)
     second_order_axial: float = field(init=False)
 
     def properties(self) -> dict[str, Any]:
@@ -74,17 +73,9 @@ class SubMember():
     def __post_init__(self) -> None:
         """Initialize a SubMember instance.
 
-        Calculates geometric properties and initializes equivalent nodal actions (ENAs)
-        and results dictionaries.
+        Calculates geometric properties and initializes the results
+        dictionary.
         """
-        self.ENAs = {
-            'axial': [0, 0],
-            'shear': [0, 0],
-            'transverse shear': [0, 0],
-            'torsional moments': [0, 0],
-            'minor axis moments': [0, 0],
-            'major axis moments': [0, 0]
-        }
         self.results: dict[str, list[float]] = {
             'displacements': [],
             'axial': [],
@@ -92,14 +83,10 @@ class SubMember():
             'transverse shear': [],
             'torsional moments': [],
             'minor axis moments': [],
-            'major axis moments': []
+            'major axis moments': [],
+            'w_major': [],
+            'w_minor': []
         }
-        # Local distributed-load intensities [i-end, j-end], in kips per inch,
-        # in the member's major (local y) and minor (local z) bending planes.
-        # Populated when distributed loads are applied; copied into the
-        # results, which evaluate the internal forces along the span.
-        self.w_major = [0.0, 0.0]
-        self.w_minor = [0.0, 0.0]
         # Axial force (j end, tension positive) whose geometric stiffness was
         # included in the last analysis; zero after a first-order analysis.
         # Copied into the results, where it adds the P-delta moment to the

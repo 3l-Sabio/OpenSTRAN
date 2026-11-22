@@ -126,8 +126,8 @@ class SubMemberResult:
             submember=submember,
             displacements=np.asarray(r['displacements'], dtype=float),
             forces={key: _pair(r[key]) for key in FORCE_KEYS},
-            w_major=_pair(submember.w_major),
-            w_minor=_pair(submember.w_minor),
+            w_major=_pair(r['w_major']),
+            w_minor=_pair(r['w_minor']),
             second_order_axial=submember.second_order_axial,
         )
 

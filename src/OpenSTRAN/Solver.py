@@ -1,3 +1,4 @@
+from .Loads import Loads, NodalLoad, PointLoad
 from .Nodes import Nodes
 from .Members import Members
 from .Submember import SubMember
@@ -47,11 +48,17 @@ class Solver():
         self.force_vector: np.ndarray | None = None
         self.global_displacement_vector: np.ndarray | None = None
         self.global_force_vector: np.ndarray | None = None
+        # The equivalent nodal actions (local coordinates) and the load
+        # intensities (major i, j, minor i, j) of each submember a
+        # distributed load lands on, by id, built by _setup at each solve.
+        self._span_actions: dict[int, np.ndarray] = {}
+        self._span_intensities: dict[int, np.ndarray] = {}
 
     def solve(
         self,
         nodes: Nodes,
         members: Members,
+        loads: Loads,
         second_order: bool = False,
         tolerance: float = 1e-8,
         max_iterations: int = 50
@@ -79,6 +86,7 @@ class Solver():
         Args:
             nodes (Nodes): Collection of nodes in the structural model.
             members (Members): Collection of members in the structural model.
+            loads (Loads): The loads applied to the model.
             second_order (bool, optional): Include the effect of axial forces
                 on stiffness. Defaults to False.
             tolerance (float, optional): Convergence tolerance of a
@@ -101,7 +109,7 @@ class Solver():
         self.Kt = None
         self.iterations = 0
         self.results = None
-        self._setup(nodes)
+        self._setup(nodes, loads)
 
         # First-order analysis with the elastic stiffness of each submember.
         submembers = self._submembers(members)
@@ -137,7 +145,9 @@ class Solver():
                     nodes, members, second_order=False)
         return self.results
 
-    def critical_load_factor(self, nodes: Nodes, members: Members) -> float:
+    def critical_load_factor(
+        self, nodes: Nodes, members: Members, loads: Loads
+    ) -> float:
         """Elastic critical load factor of the applied loads.
 
         Solves the eigenproblem of McGuire et al., Equation 8.7,
@@ -149,6 +159,7 @@ class Solver():
         Args:
             nodes (Nodes): Collection of nodes in the structural model.
             members (Members): Collection of members in the structural model.
+            loads (Loads): The loads applied to the model.
 
         Returns:
             float: The smallest positive factor lambda such that lambda times
@@ -159,7 +170,7 @@ class Solver():
                 every member in compression is restrained against bending and
                 twisting, or if the elastic stiffness is singular.
         """
-        self.solve(nodes, members)
+        self.solve(nodes, members, loads)
         assert self.Kp is not None
 
         submembers = self._submembers(members)
@@ -212,9 +223,10 @@ class Solver():
             for submbr in mbr.submembers.values()
         ]
 
-    def _setup(self, nodes: Nodes) -> None:
-        """Count the degrees of freedom, list the restrained ones and build
-        the force vector."""
+    def _setup(self, nodes: Nodes, loads: Loads) -> None:
+        """Count the degrees of freedom, list the restrained ones, and build
+        the force vector and the span loads of the submembers from the
+        loads."""
         # Determine the total degrees of freedom for the model.
         self.nDoF = nodes.count*6
 
@@ -234,15 +246,39 @@ class Solver():
         # Sort the restrained degrees of freedom in ascending order.
         self.restrainedDoF.sort()
 
-        # Instantiate the force vector.
-        self.force_vector = np.zeros((self.nDoF, 1))
-        for i, node in enumerate(nodes.nodes.items()):
-            self.force_vector[i*6][0] = node[1].Fx
-            self.force_vector[i*6 + 1][0] = node[1].Fy
-            self.force_vector[i*6 + 2][0] = node[1].Fz
-            self.force_vector[i*6 + 3][0] = node[1].Mx
-            self.force_vector[i*6 + 4][0] = node[1].My
-            self.force_vector[i*6 + 5][0] = node[1].Mz
+        # The force vector: nodal and point loads in the order they were
+        # added, then the equivalent nodal actions of the distributed loads.
+        F = np.zeros((self.nDoF, 1))
+        for load in loads:
+            if isinstance(load, NodalLoad):
+                dof = 'XYZ'.index(load.direction)
+                if load.kind == 'moment':
+                    dof += 3
+                F[6*(load.node.node_ID - 1) + dof, 0] += load.magnitude
+            elif isinstance(load, PointLoad):
+                i = 6*(load.node.node_ID - 1)
+                F[i:i + 3, 0] += load.member.point_load_vector(
+                    load.magnitude, load.direction)
+
+        self._span_actions = {}
+        self._span_intensities = {}
+        for load in loads.distributed:
+            for submbr, actions, w_major, w_minor in \
+                    load.member.distributed_load_actions(
+                        load.w1, load.w2, load.direction, load.loc1,
+                        load.loc2):
+                f_global = submbr.rotation_matrix @ actions
+                i = 6*(submbr.node_i.node_ID - 1)
+                j = 6*(submbr.node_j.node_ID - 1)
+                F[i:i + 6, 0] += f_global[:6, 0]
+                F[j:j + 6, 0] += f_global[6:, 0]
+                key = id(submbr)
+                self._span_actions[key] = (
+                    self._span_actions.get(key, 0.0) + actions[:, 0])
+                self._span_intensities[key] = (
+                    self._span_intensities.get(key, 0.0)
+                    + np.array([*w_major, *w_minor]))
+        self.force_vector = F
 
     def _free_dofs(self) -> list[int]:
         """Indices of the unrestrained degrees of freedom, in order."""
@@ -459,7 +495,10 @@ class Solver():
         local_matrices: list[tuple[SubMember, np.ndarray]],
         K: np.ndarray
     ) -> None:
-        """Recover reactions, member forces and nodal results.
+        """Recover the reactions and the end forces of each submember.
+
+        Also stores, with each submember's end forces, the distributed-load
+        intensities of the solve, which the results copy.
 
         Args:
             local_matrices: Pairs of a submember and the local stiffness
@@ -501,8 +540,15 @@ class Solver():
 
             submbr.results['displacements'] = np.matmul(
                 submbr.transformation_matrix, mbrDisplacements)
-            forces = np.matmul(
-                k_local, submbr.results['displacements'])
+
+            # The forces of the displacements, less the equivalent nodal
+            # actions of the span loads: the forces the nodes apply to the
+            # submember's ends.
+            key = id(submbr)
+            forces = np.matmul(k_local, submbr.results['displacements'])
+            if key in self._span_actions:
+                forces = forces - self._span_actions[key]
+            w = self._span_intensities.get(key, np.zeros(4))
 
             submbr.results['axial'] = [forces[0], forces[6]]
             submbr.results['shear'] = [forces[1], forces[7]]
@@ -513,39 +559,8 @@ class Solver():
                 forces[4], forces[10]]
             submbr.results['major axis moments'] = [
                 forces[5], forces[11]]
-
-        # Remove the influence of equivalent nodal actions from member forces.
-        for submbr, _ in local_matrices:
-
-            submbr.results['axial'][0] = submbr.results['axial'][0] - \
-                submbr.ENAs['axial'][0]
-            submbr.results['axial'][1] = submbr.results['axial'][1] - \
-                submbr.ENAs['axial'][1]
-
-            submbr.results['transverse shear'][0] = submbr.results['transverse shear'][0] - \
-                submbr.ENAs['transverse shear'][0]
-            submbr.results['transverse shear'][1] = submbr.results['transverse shear'][1] - \
-                submbr.ENAs['transverse shear'][1]
-
-            submbr.results['shear'][0] = submbr.results['shear'][0] - \
-                submbr.ENAs['shear'][0]
-            submbr.results['shear'][1] = submbr.results['shear'][1] - \
-                submbr.ENAs['shear'][1]
-
-            submbr.results['torsional moments'][0] = submbr.results['torsional moments'][0] - \
-                submbr.ENAs['torsional moments'][0]
-            submbr.results['torsional moments'][1] = submbr.results['torsional moments'][1] - \
-                submbr.ENAs['torsional moments'][1]
-
-            submbr.results['major axis moments'][0] = submbr.results['major axis moments'][0] - \
-                submbr.ENAs['major axis moments'][0]
-            submbr.results['major axis moments'][1] = submbr.results['major axis moments'][1] - \
-                submbr.ENAs['major axis moments'][1]
-
-            submbr.results['minor axis moments'][0] = submbr.results['minor axis moments'][0] - \
-                submbr.ENAs['minor axis moments'][0]
-            submbr.results['minor axis moments'][1] = submbr.results['minor axis moments'][1] - \
-                submbr.ENAs['minor axis moments'][1]
+            submbr.results['w_major'] = [w[0], w[1]]
+            submbr.results['w_minor'] = [w[2], w[3]]
 
     def _results(
         self, nodes: Nodes, members: Members, second_order: bool
