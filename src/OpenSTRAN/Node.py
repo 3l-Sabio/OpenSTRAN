@@ -5,6 +5,14 @@ from .Coordinates import Coordinate
 from typing import Any
 
 
+# The restraints that keep the nodes of a two-dimensional model in its plane.
+PLANE_RESTRAINTS: dict[str, tuple[int, ...]] = {
+    'xy': (0, 0, 1, 1, 1, 0),
+    'yz': (1, 0, 0, 0, 1, 1),
+    'zx': (0, 1, 0, 1, 0, 1),
+}
+
+
 @dataclass(slots=True)
 class Node():
     """A class representing a node in the structural analysis model.
@@ -58,14 +66,8 @@ class Node():
 
         If a plane is specified, sets the appropriate out-of-plane restraints.
         """
-        if self.plane is None:
-            return
-        elif self.plane == 'xy':
-            self.restraint = [0, 0, 1, 1, 1, 0]
-        elif self.plane == 'yz':
-            self.restraint = [1, 0, 0, 0, 1, 1]
-        elif self.plane == 'zx':
-            self.restraint = [0, 1, 0, 1, 0, 1]
+        if self.plane in PLANE_RESTRAINTS:
+            self.restraint = list(PLANE_RESTRAINTS[self.plane])
 
     def properties(self) -> dict[str, Any]:
         """Return the dataclass properties as a dictionary.
