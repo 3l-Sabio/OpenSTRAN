@@ -90,7 +90,7 @@ See <a href="CONTRIBUTING.md">CONTRIBUTING.md</a> for how to set up a developmen
 
 ## Quickstart Example
 
-Below is a simple example that will help you get started using OpenSTRAN. The example consists of a simply supported beam subject to a point load.
+Below is a simple example that will help you get started using OpenSTRAN. The example consists of a simply supported beam subject to a uniformly distributed load.
 
 
 ```python
@@ -106,8 +106,9 @@ N1 = model.nodes.add_node(0, 0, 0)  # (X [in], Y [in], Z [in])
 # create a node 120 inches (10 feet) away from the origin along the global X axis.
 N2 = model.nodes.add_node(120, 0, 0)  # (X [in], Y [in], Z [in])
 
-# restrain the nodes from translation.
-N1.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
+# restrain the nodes from translation, and N1 from twisting about the beam's
+# axis, which nothing else resists.
+N1.restraint = [1, 1, 1, 1, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
 N2.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
 
 # define steel constants
@@ -124,13 +125,14 @@ M1 = model.members.add_member(N1, N2, shape=s)
 M1.add_distributed_load(-1/12, -1/12, 'Y', 0, 100)
 
 # solve the model.
-model.solve()
-
-# perform post processing steps on the model
-model.max_deflection()
+results = model.solve()
 
 # print the nodal reactions to the terminal.
 model.reactions()
+
+# print the maximum deflection and the moment at midspan.
+print(f"Maximum deflection: {results.Uy_max:.4f} in")
+print(f"Moment at midspan: {results.member(M1).moment(50):.1f} kip-in")
 ```
 ```bash
 Nodal Reactions
@@ -148,6 +150,23 @@ Nodal Reactions
                 Mx = 0.00 kip-in
                 My = 0.00 kip-in
                 Mz = 0.00 kip-in
-
-
+Maximum deflection: 0.0876 in
+Moment at midspan: -150.0 kip-in
 ```
+
+`model.solve()` returns the results of the analysis, which the model also keeps as `model.results`. They give each node's displacements and reactions (`results.node(N1).Ry`), each member's internal forces along its span (`results.member(M1).moment(50)`) and the largest values in the model (`results.Mzz_max`, `results.Uy_max`). They do not change when the model is solved again.
+
+**Changed after version 0.0.6.** Versions up to 0.0.6 stored results on the model, nodes and members. A script written for those versions can be updated as follows:
+
+| Up to 0.0.6 | Now |
+|---|---|
+| `model.solve()`, then `model.max_deflection()` | `results = model.solve()` |
+| `model.Uy_max`, `model.Mzz_max`, `model.Ry_max` | `results.Uy_max`, `results.Mzz_max`, `results.Ry_max` |
+| `N1.Uy`, `N1.Ry` | `results.node(N1).Uy`, `results.node(N1).Ry` |
+| `M1.moment(50)`, `M1.shear(50)` | `results.member(M1).moment(50)`, `results.member(M1).shear(50)` |
+| `M1.calculate_Cb()` | `results.member(M1).calculate_Cb()` |
+| `M1.submembers[k].results['axial']` | `results.member(M1).submembers[k - 1].forces['axial']` |
+| `N1.Fx = 5.0` | `N1.add_load(5.0, 'force', 'X')` |
+| `N1.Fx = 8.0` to change the load | `model.loads.clear()`, then add every load again |
+
+`add_load` adds to the loads already on the node, where setting `N1.Fx` replaced its value. `model.loads.clear()` removes the loads of the whole model. `add_load` now needs the load type and the direction, and raises a `ValueError` for a type other than `'force'` or `'moment'` or a direction other than `'X'`, `'Y'` or `'Z'`; up to 0.0.6, a call that left them out or gave a lowercase direction added no load. The submembers of a member's results are a tuple counted from 0, while `M1.submembers` is still a dictionary counted from 1.

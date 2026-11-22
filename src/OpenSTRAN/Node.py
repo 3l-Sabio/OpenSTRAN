@@ -25,15 +25,16 @@ class Node():
         restraint (list[int]): List of 6 integers indicating restrained degrees of freedom
             [Ux, Uy, Uz, φx, φy, φz]. Defaults to [0, 0, 0, 0, 0, 0].
         plane (str | None): The plane associated with the node. Defaults to None.
+        loads (Loads | None): The model's loads, to which ``add_load`` adds;
+            given by ``Nodes.add_node``. None for a node outside a model.
     """
     coordinates: Coordinate
     node_ID: int
     mesh_node: bool = False
     plane: str | None = None
     restraint: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0, 0])
-    # The model's loads, which add_load adds to; set by Nodes.add_node.
-    _loads: Loads | None = field(
-        default=None, init=False, repr=False, compare=False)
+    loads: Loads | None = field(
+        default=None, kw_only=True, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Set default restraints based on the plane constraint.
@@ -82,26 +83,26 @@ class Node():
                 msg6=str("Roller in the x direction: [0,1,1,0,0,0]")
             ))
 
-    def add_load(self, mag: float, lType: str = 'moment', direction: str = 'y') -> None:
+    def add_load(self, mag: float, lType: str, direction: str) -> None:
         """Add a load to the node.
 
         The load is recorded in the model's loads (``Model.loads``) and
-        applied when the model is solved.
+        applied when the model is solved; see
+        :meth:`OpenSTRAN.Loads.Loads.add_nodal_load`.
 
         Args:
             mag (float): Magnitude of the load. Units are kips for forces and kip-in for moments.
-            lType (str, optional): Type of load. Either 'moment' or 'force'. Defaults to 'moment'.
-            direction (str, optional): Direction of the load. 'X', 'Y', or 'Z'. Defaults to 'y'.
+            lType (str): Type of load, 'force' or 'moment'.
+            direction (str): Direction of the load, a global axis: 'X', 'Y'
+                or 'Z'.
 
         Raises:
             RuntimeError: If the node was not added to a model with
                 ``Nodes.add_node``.
+            ValueError: If lType or direction is not one of those above.
         """
-        if direction not in ('X', 'Y', 'Z'):
-            return
-        if self._loads is None:
+        if self.loads is None:
             raise RuntimeError(
                 "The node belongs to no model: add nodes with "
                 "Nodes.add_node.")
-        self._loads.add_nodal_load(
-            self, mag, 'moment' if lType == 'moment' else 'force', direction)
+        self.loads.add_nodal_load(self, mag, lType, direction)

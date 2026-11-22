@@ -68,9 +68,9 @@ class Nodes():
                 coordinates=coordinates,
                 node_ID=self.count,
                 plane=self.plane,
-                mesh_node=mesh_node
+                mesh_node=mesh_node,
+                loads=self.loads
             )
-            node._loads = self.loads
             self.nodes[self.count] = node
         return node
 

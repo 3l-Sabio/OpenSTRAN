@@ -21,11 +21,15 @@ class Model():
         nodes (Nodes): Collection of nodes in the structure.
         members (Members): Collection of members (elements) in the structure.
         loads (Loads): The loads applied to the structure, added with
-            ``Node.add_load``, ``Member.add_point_load`` and
-            ``Member.add_distributed_load``.
+            ``loads.add_nodal_load``, ``add_point_load`` and
+            ``add_distributed_load``, or with ``Node.add_load``,
+            ``Member.add_point_load`` and ``Member.add_distributed_load``,
+            which call them; removed with ``loads.clear()``.
         solver (Solver): Solver instance for performing structural analysis.
-        results (Results | None): Results of the last analysis, or None
-            before the first.
+            Its attributes describe the last analysis it ran, which may have
+            failed; ``results`` holds the results.
+        results (Results | None): Results of the last successful analysis,
+            or None before the first.
 
     Example:
 

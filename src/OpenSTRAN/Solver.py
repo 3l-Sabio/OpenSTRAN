@@ -15,18 +15,20 @@ class Solver():
     the global stiffness matrix, applying boundary conditions, and solving for nodal
     displacements and member forces.
 
+    ``solve`` returns the results of an analysis. The attributes below are
+    the working state of the last analysis the solver ran, including one
+    that failed and the first-order analysis of ``critical_load_factor``, so
+    they can differ from the results the model keeps (``Model.results``).
+
     Parameters:
         nDoF (int): Total number of degrees of freedom in the structure.
         restrainedDoF (list[int]): List of restrained degrees of freedom indices.
         Kp (numpy.ndarray | None): Primary (elastic) stiffness matrix for the
             structure.
         Kt (numpy.ndarray | None): Tangent stiffness matrix (elastic plus
-            geometric) of the last second-order analysis, or None.
-        iterations (int): Number of iterations performed by the last
-            second-order analysis, including one that failed; 0 for a
-            first-order analysis.
-        results (Results | None): Results of the last successful solve, or
-            None before the first.
+            geometric) of the last analysis if it was second-order, or None.
+        iterations (int): Number of iterations of the last analysis if it
+            was second-order; 0 for a first-order analysis.
         force_vector (numpy.ndarray | None): Global force vector with applied loads.
         global_displacement_vector (numpy.ndarray | None): Global displacement vector at all nodes.
         global_force_vector (numpy.ndarray | None): Global reaction force vector.
@@ -43,7 +45,6 @@ class Solver():
         self.Kp: np.ndarray | None = None
         self.Kt: np.ndarray | None = None
         self.iterations: int = 0
-        self.results: Results | None = None
         self.force_vector: np.ndarray | None = None
         self.global_displacement_vector: np.ndarray | None = None
         self.global_force_vector: np.ndarray | None = None
@@ -86,7 +87,7 @@ class Solver():
         The second-order analysis uses the load control method of McGuire et al.
         (Equations 12.11 and 12.16, as a single load increment) with the
         geometry held fixed. An analysis that fails or is interrupted raises
-        without results and changes neither the model nor ``results``.
+        without results and changes nothing in the model.
 
         Args:
             nodes (Nodes): Collection of nodes in the structural model.
@@ -102,7 +103,7 @@ class Solver():
                 second-order analysis. Defaults to 50.
 
         Returns:
-            Results: The results of the analysis, also kept as ``results``.
+            Results: The results of the analysis.
 
         Raises:
             RuntimeError: If a second-order analysis does not converge, or if
@@ -114,9 +115,7 @@ class Solver():
         submembers = self._first_order(nodes, members, loads)
         if second_order:
             self._second_order(nodes, submembers, tolerance, max_iterations)
-        results = self._results(nodes, members, second_order)
-        self.results = results
-        return results
+        return self._results(nodes, members, second_order)
 
     def critical_load_factor(
         self, nodes: Nodes, members: Members, loads: Loads
@@ -127,7 +126,7 @@ class Solver():
         ``[Ke + lambda Kg] {d} = 0``, in which the geometric stiffness Kg is
         formed from the axial forces of a first-order analysis under the
         applied loads (see ``SubMember.geometric_stiffness``). It changes
-        neither the model nor ``results``.
+        nothing in the model.
 
         Args:
             nodes (Nodes): Collection of nodes in the structural model.

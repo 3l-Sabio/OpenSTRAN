@@ -225,15 +225,21 @@ class Member():
         local_z_unit = np.cross(local_x_unit, local_y_unit)
         return np.array([local_x_unit, local_y_unit, local_z_unit]).T
 
-    def _node_at_fraction(self, frac: float) -> Node:
-        """Create (or reuse) a node at a fractional position along the member.
+    def add_node(self, location: float) -> Node:
+        """Add a node at a location along the member, or return the node
+        already there.
+
+        The member is meshed through every node along it when the model is
+        first solved, so a node added after that is not connected to it.
 
         Args:
-            frac (float): Position along the span as a fraction from 0.0 to 1.0.
+            location (float): Position along the span as a percentage
+                (0-100%).
 
         Returns:
-            Node: The node at the requested position.
+            Node: The node at the location; a mesh node if it was created.
         """
+        frac = location/100
         i = self.node_i.coordinates
         dx = self.node_j.coordinates.x - i.x
         dy = self.node_j.coordinates.y - i.y
@@ -322,10 +328,10 @@ class Member():
     def add_point_load(self, mag: float, direction: str, location: float) -> None:
         """Apply a concentrated point load to the member as a nodal load.
 
-        Ensures a node exists at the load location, creating one if the load
-        does not land on an existing node, and records the load in the
-        model's loads (``Model.loads``). It is applied to that node when the
-        model is solved.
+        Adds the load to the model's loads (``Model.loads``); see
+        :meth:`OpenSTRAN.Loads.Loads.add_point_load`. A node is created at
+        the load location if the load does not land on an existing node, and
+        the load is applied to that node when the model is solved.
 
         Args:
             mag (float): Magnitude of the load in kips.
@@ -336,14 +342,7 @@ class Member():
         Raises:
             ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
-        if direction not in ('X', 'Y', 'Z', 'x', 'y', 'z'):
-            raise ValueError(
-                "Load direction must be global ('X', 'Y', 'Z') or local ('x', 'y', 'z')."
-            )
-
-        # Create (or reuse) a node at the load location along the member.
-        node = self._node_at_fraction(location/100)
-        self.nodes.loads.add_point_load(self, mag, direction, location, node)
+        self.nodes.loads.add_point_load(self, mag, direction, location)
 
     def point_load_vector(self, mag: float, direction: str) -> np.ndarray:
         """Global X, Y and Z components of a point load on the member.
@@ -372,10 +371,11 @@ class Member():
     def add_distributed_load(self, Mag1: float, Mag2: float, direction: str, loc1: float, loc2: float):
         """Apply a trapezoidal distributed load along the member.
 
-        Creates nodes at the start and end of the loaded region (if they do not
-        already exist) so the load aligns with element boundaries, and records
-        the load in the model's loads (``Model.loads``). Each solve applies it
-        to the submembers of the mesh through equivalent nodal actions (see
+        Adds the load to the model's loads (``Model.loads``); see
+        :meth:`OpenSTRAN.Loads.Loads.add_distributed_load`. Nodes are created
+        at the start and end of the loaded region (if they do not already
+        exist) so the load aligns with element boundaries. Each solve applies
+        it to the submembers of the mesh through equivalent nodal actions (see
         :meth:`distributed_load_actions`).
 
         Args:
@@ -393,15 +393,6 @@ class Member():
         Raises:
             ValueError: If direction is not one of 'X', 'Y', 'Z', 'x', 'y', 'z'.
         """
-        if direction not in ('X', 'Y', 'Z', 'x', 'y', 'z'):
-            raise ValueError(
-                "Force vector must be bound to a global or local axis."
-            )
-
-        # Ensure nodes exist at the start and end of the loaded region.
-        self._node_at_fraction(loc1/100)
-        self._node_at_fraction(loc2/100)
-
         self.nodes.loads.add_distributed_load(
             self, Mag1, Mag2, direction, loc1, loc2)
 
