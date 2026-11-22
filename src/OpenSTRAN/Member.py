@@ -789,59 +789,21 @@ class Member():
 
             l1 = l2
 
-    def _locate(self, location: float) -> tuple[SubMember, float]:
-        """Map a span location to the parent submember and a local position.
-
-        Args:
-            location (float): Position along the member span as a percentage
-                (0-100%).
-
-        Returns:
-            tuple[SubMember, float]: The submember containing the location and the
-            distance (in inches) from that submember's i-node.
-        """
-        target = self.length*(location/100)  # inches from node i
-        run = 0.0
-        submbr = None
-        for submbr in self.submembers.values():
-            sub_length = submbr.length
-            if run - 1e-6 <= target <= run + sub_length + 1e-6:
-                return submbr, min(max(target - run, 0.0), sub_length)
-            run += sub_length
-        # Location is beyond the last submember; clamp to its far end.
-        return submbr, submbr.length
-
     def moment(self, location: float, axis: str = 'major') -> float:
-        """Internal bending moment at an arbitrary location along the member.
-
-        Calculates exact moments between mesh nodes by evaluating the parent
-        submember's closed-form moment expression.
-
-        Args:
-            location (float): Position along the span as a percentage (0-100%).
-            axis (str, optional): 'major' (about local z) or 'minor' (about local
-                y). Defaults to 'major'.
-
-        Returns:
-            float: Bending moment in kip-inches.
-        """
-        submbr, x = self._locate(location)
-        if axis == 'minor':
-            return submbr.moment_minor(x)
-        return submbr.moment_major(x)
+        """Internal bending moment at a location along the member, in
+        kip-inches; see ``MemberResult.moment``. Any ``axis`` other than
+        'minor' gives the major-axis moment."""
+        return self._result().moment(
+            location, 'minor' if axis == 'minor' else 'major')
 
     def shear(self, location: float, axis: str = 'major') -> float:
-        """Internal shear force at an arbitrary location along the member.
+        """Internal shear force at a location along the member, in kips; see
+        ``MemberResult.shear``. Any ``axis`` other than 'minor' gives the
+        major-axis shear."""
+        return self._result().shear(
+            location, 'minor' if axis == 'minor' else 'major')
 
-        Args:
-            location (float): Position along the span as a percentage (0-100%).
-            axis (str, optional): 'major' (local y) or 'minor' (local z).
-                Defaults to 'major'.
-
-        Returns:
-            float: Shear force in kips.
-        """
-        submbr, x = self._locate(location)
-        if axis == 'minor':
-            return submbr.shear_minor(x)
-        return submbr.shear_major(x)
+    def _result(self):
+        # Imported here because the Results module imports this one.
+        from .Results import MemberResult
+        return MemberResult.from_member(self)

@@ -1,5 +1,5 @@
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import numpy as np
@@ -47,9 +47,16 @@ class NodeResult:
     Rmz: float
 
 
+def _check_axis(axis: str) -> None:
+    if axis not in ('major', 'minor'):
+        raise ValueError(
+            f"axis must be 'major' or 'minor', not {axis!r}.")
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class SubMemberResult:
-    """End displacements and end forces of one submember.
+    """End displacements and end forces of one submember, and its internal
+    forces along the span.
 
     Compared by identity, like the submember it belongs to.
 
@@ -62,6 +69,9 @@ class SubMemberResult:
             (read-only). They are the forces the nodes apply to the
             submember's ends, including the fixed-end forces of span loads,
             so the axial force at the j end is positive in tension.
+        w_major, w_minor (tuple[float, float]): Intensities (i end, j end)
+            of the distributed load in the major (local y) and minor (local
+            z) planes, in kips per inch.
         second_order_axial (float): Axial force (j end, tension positive)
             whose geometric stiffness was included in the analysis; zero
             after a first-order analysis.
@@ -69,7 +79,12 @@ class SubMemberResult:
     submember: SubMember
     displacements: np.ndarray
     forces: Mapping[str, tuple[float, float]]
+    w_major: tuple[float, float]
+    w_minor: tuple[float, float]
     second_order_axial: float
+    # The deflected shape in each plane, for the P-delta moment.
+    _deflection: dict[str, tuple[float, float, float]] = field(
+        init=False, repr=False)
 
     def __post_init__(self) -> None:
         # Keep read-only copies, so that neither a later solve nor the
@@ -79,6 +94,184 @@ class SubMemberResult:
         object.__setattr__(self, 'displacements', displacements)
         object.__setattr__(
             self, 'forces', MappingProxyType(dict(self.forces)))
+        major = minor = (0.0, 0.0, 0.0)
+        if self.second_order_axial:
+            major, minor = self.submember.deflection_polynomials(
+                displacements, self.second_order_axial)
+        object.__setattr__(
+            self, '_deflection', {'major': major, 'minor': minor})
+
+    @classmethod
+    def from_submember(cls, submember: SubMember) -> SubMemberResult:
+        """The results of a submember's current state, as the solver left
+        it.
+
+        Args:
+            submember (SubMember): The submember.
+
+        Returns:
+            SubMemberResult: Its results.
+        """
+        r = submember.results
+        return cls(
+            submember=submember,
+            displacements=np.asarray(r['displacements'], dtype=float),
+            forces={key: (float(r[key][0]), float(r[key][1]))
+                    for key in FORCE_KEYS},
+            w_major=(float(submember.w_major[0]),
+                     float(submember.w_major[1])),
+            w_minor=(float(submember.w_minor[0]),
+                     float(submember.w_minor[1])),
+            second_order_axial=float(submember.second_order_axial),
+        )
+
+    def moment(self, x: float, axis: str = 'major') -> float:
+        """Internal bending moment at a position along the submember.
+
+        The exact closed-form moment of the i-end forces and the span load.
+        After a second-order analysis it includes the moment of the axial
+        force about the deflected axis, with the deflection interpolated by
+        the cubic shape functions of the geometric stiffness.
+
+        Args:
+            x (float): Distance from the i end, in inches.
+            axis (str, optional): 'major' (about local z) or 'minor' (about
+                local y). Defaults to 'major'.
+
+        Returns:
+            float: Bending moment in kip-inches.
+
+        Raises:
+            ValueError: If ``axis`` is not 'major' or 'minor'.
+        """
+        _check_axis(axis)
+        l = self.submember.length
+        if axis == 'major':
+            m1 = self.forces['major axis moments'][0]
+            v1 = self.forces['shear'][0]
+            w1, w2 = self.w_major
+            return (m1 - v1*x - w1*x**2/2 - (w2 - w1)*x**3/(6*l)
+                    - self._p_delta_moment(x, 'major'))
+        m1 = self.forces['minor axis moments'][0]
+        v1 = self.forces['transverse shear'][0]
+        w1, w2 = self.w_minor
+        return (m1 + v1*x + w1*x**2/2 + (w2 - w1)*x**3/(6*l)
+                + self._p_delta_moment(x, 'minor'))
+
+    def shear(self, x: float, axis: str = 'major') -> float:
+        """Internal shear force at a position along the submember.
+
+        Args:
+            x (float): Distance from the i end, in inches.
+            axis (str, optional): 'major' (along local y) or 'minor' (along
+                local z). Defaults to 'major'.
+
+        Returns:
+            float: Shear force in kips.
+
+        Raises:
+            ValueError: If ``axis`` is not 'major' or 'minor'.
+        """
+        _check_axis(axis)
+        l = self.submember.length
+        if axis == 'major':
+            v1 = self.forces['shear'][0]
+            w1, w2 = self.w_major
+        else:
+            v1 = self.forces['transverse shear'][0]
+            w1, w2 = self.w_minor
+        return v1 + w1*x + (w2 - w1)*x**2/(2*l)
+
+    def _p_delta_moment(self, x: float, axis: str) -> float:
+        """Moment of the axial force about the deflected axis, N (v(x) - v1).
+
+        Zero after a first-order analysis.
+        """
+        N = self.second_order_axial
+        if N == 0:
+            return 0.0
+        a1, a2, a3 = self._deflection[axis]
+        return N*(a1*x + a2*x**2 + a3*x**3)
+
+    def force_extrema(self) -> dict[str, tuple[float, float]]:
+        """The (max, min) internal force in each component over the span.
+
+        Moment and shear extrema are found analytically. Moment peaks where
+        dM/dx is zero. Axial force and torsion are constant along the
+        submember, so their extrema are the end values. The values follow
+        the sign convention of the i-end forces (the j-end forces with their
+        sign reversed), so an axial force in tension is negative.
+
+        Returns:
+            dict[str, tuple[float, float]]: (max, min) for each key of
+            ``FORCE_KEYS``.
+        """
+        l = self.submember.length
+
+        def roots(a: float, b: float, c: float) -> list[float]:
+            # Real roots of a*x^2 + b*x + c = 0 falling strictly within (0, L).
+            candidates: list[float] = []
+            if abs(a) < 1e-12:
+                if abs(b) > 1e-12:
+                    candidates.append(-c/b)
+            else:
+                disc = b*b - 4*a*c
+                if disc >= 0:
+                    sq = disc**0.5
+                    candidates.append((-b + sq)/(2*a))
+                    candidates.append((-b - sq)/(2*a))
+            return [x for x in candidates if 0 < x < l]
+
+        wy1, wy2 = self.w_major
+        wz1, wz2 = self.w_minor
+        vy1 = self.forces['shear'][0]
+        vz1 = self.forces['transverse shear'][0]
+
+        # Moment extrema: the ends plus any point where dM/dx is zero. In a
+        # first-order analysis that is where the shear is zero; after a
+        # second-order analysis the slope also carries the P-delta term
+        # N (a1 + 2 a2 x + 3 a3 x^2), with the same sign for both axes.
+        N = self.second_order_axial
+        ay1, ay2, ay3 = self._deflection['major']
+        az1, az2, az3 = self._deflection['minor']
+        xs_Mz = [0.0, l] + roots(
+            (wy2 - wy1)/(2*l) + 3*N*ay3, wy1 + 2*N*ay2, vy1 + N*ay1)
+        xs_My = [0.0, l] + roots(
+            (wz2 - wz1)/(2*l) + 3*N*az3, wz1 + 2*N*az2, vz1 + N*az1)
+
+        # Shear extrema: the ends plus the point where the load intensity
+        # is zero.
+        xs_Vy = [0.0, l]
+        if abs(wy2 - wy1) > 1e-12:
+            xv = -wy1*l/(wy2 - wy1)
+            if 0 < xv < l:
+                xs_Vy.append(xv)
+        xs_Vz = [0.0, l]
+        if abs(wz2 - wz1) > 1e-12:
+            xv = -wz1*l/(wz2 - wz1)
+            if 0 < xv < l:
+                xs_Vz.append(xv)
+
+        def ext(func: Callable[[float, str], float], xs: list[float],
+                axis: str) -> tuple[float, float]:
+            vals = [func(x, axis) for x in xs]
+            return (max(vals), min(vals))
+
+        # Axial force and torsion do not vary along the submember, so their
+        # extrema are the end values.
+        axial = self.forces['axial']
+        torque = self.forces['torsional moments']
+        axial_vals = [axial[0], -axial[1]]
+        torque_vals = [torque[0], -torque[1]]
+
+        return {
+            'axial': (max(axial_vals), min(axial_vals)),
+            'torsional moments': (max(torque_vals), min(torque_vals)),
+            'shear': ext(self.shear, xs_Vy, 'major'),
+            'transverse shear': ext(self.shear, xs_Vz, 'minor'),
+            'major axis moments': ext(self.moment, xs_Mz, 'major'),
+            'minor axis moments': ext(self.moment, xs_My, 'minor'),
+        }
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -95,6 +288,73 @@ class MemberResult:
     """
     member: Member
     submembers: tuple[SubMemberResult, ...]
+
+    @classmethod
+    def from_member(cls, member: Member) -> MemberResult:
+        """The results of a member's current state, as the solver left it.
+
+        Args:
+            member (Member): The member.
+
+        Returns:
+            MemberResult: Its results.
+        """
+        return cls(member, tuple(
+            SubMemberResult.from_submember(submember)
+            for submember in member.submembers.values()))
+
+    def _locate(self, location: float) -> tuple[SubMemberResult, float]:
+        """The submember at a location along the span, and the distance (in
+        inches) from its i end. A location beyond the span is clamped to
+        the end of the last submember."""
+        target = self.member.length*(location/100)  # inches from node i
+        run = 0.0
+        for sub in self.submembers:
+            sub_length = sub.submember.length
+            if run - 1e-6 <= target <= run + sub_length + 1e-6:
+                return sub, min(max(target - run, 0.0), sub_length)
+            run += sub_length
+        last = self.submembers[-1]
+        return last, last.submember.length
+
+    def moment(self, location: float, axis: str = 'major') -> float:
+        """Internal bending moment at a location along the member.
+
+        Evaluates the exact closed-form moment of the submember there (see
+        ``SubMemberResult.moment``), between mesh nodes too.
+
+        Args:
+            location (float): Position along the span as a percentage
+                (0-100%).
+            axis (str, optional): 'major' (about local z) or 'minor' (about
+                local y). Defaults to 'major'.
+
+        Returns:
+            float: Bending moment in kip-inches.
+
+        Raises:
+            ValueError: If ``axis`` is not 'major' or 'minor'.
+        """
+        sub, x = self._locate(location)
+        return sub.moment(x, axis)
+
+    def shear(self, location: float, axis: str = 'major') -> float:
+        """Internal shear force at a location along the member.
+
+        Args:
+            location (float): Position along the span as a percentage
+                (0-100%).
+            axis (str, optional): 'major' (along local y) or 'minor' (along
+                local z). Defaults to 'major'.
+
+        Returns:
+            float: Shear force in kips.
+
+        Raises:
+            ValueError: If ``axis`` is not 'major' or 'minor'.
+        """
+        sub, x = self._locate(location)
+        return sub.shear(x, axis)
 
 
 class Results:
@@ -124,7 +384,6 @@ class Results:
         displacements: np.ndarray,
         reactions: np.ndarray,
         members: list[MemberResult],
-        force_extrema: dict[str, tuple[float, float]],
         second_order: bool,
         iterations: int,
     ) -> None:
@@ -136,8 +395,6 @@ class Results:
             reactions: Global reaction vector (6 per node), zero at the
                 unrestrained degrees of freedom.
             members: Results of each member.
-            force_extrema: (max, min) of each member force component over
-                the whole model, keyed as ``FORCE_KEYS``.
             second_order: Whether the analysis was second order.
             iterations: Iterations of a second-order analysis.
         """
@@ -147,7 +404,14 @@ class Results:
         self._U.setflags(write=False)
         self._R.setflags(write=False)
         self._members = {id(m.member): m for m in members}
-        self._force_extrema = dict(force_extrema)
+        # The largest magnitude of each member force component, between the
+        # ends of the submembers too.
+        self._force_peaks = {key: 0.0 for key in FORCE_KEYS}
+        for member in members:
+            for sub in member.submembers:
+                for key, values in sub.force_extrema().items():
+                    self._force_peaks[key] = max(
+                        self._force_peaks[key], *(abs(v) for v in values))
         self._second_order = second_order
         self._iterations = iterations
 
@@ -208,9 +472,6 @@ class Results:
     def _max_abs(self, values: np.ndarray) -> float:
         return float(np.max(np.abs(values), initial=0.0))
 
-    def _force_max(self, key: str) -> float:
-        return max((abs(v) for v in self._force_extrema[key]), default=0.0)
-
     @property
     def Rx_max(self) -> float:
         return self._max_abs(self._R[0::6])
@@ -249,24 +510,24 @@ class Results:
 
     @property
     def axial_max(self) -> float:
-        return self._force_max('axial')
+        return self._force_peaks['axial']
 
     @property
     def torque_max(self) -> float:
-        return self._force_max('torsional moments')
+        return self._force_peaks['torsional moments']
 
     @property
     def Vy_max(self) -> float:
-        return self._force_max('shear')
+        return self._force_peaks['shear']
 
     @property
     def Vz_max(self) -> float:
-        return self._force_max('transverse shear')
+        return self._force_peaks['transverse shear']
 
     @property
     def Mzz_max(self) -> float:
-        return self._force_max('major axis moments')
+        return self._force_peaks['major axis moments']
 
     @property
     def Myy_max(self) -> float:
-        return self._force_max('minor axis moments')
+        return self._force_peaks['minor axis moments']

@@ -1,7 +1,7 @@
 from .Nodes import Nodes
 from .Members import Members
 from .Submember import SubMember
-from .Results import FORCE_KEYS, MemberResult, Results, SubMemberResult
+from .Results import MemberResult, Results
 
 import numpy as np
 from scipy.linalg import solve, cho_factor, cho_solve, eigh, LinAlgError
@@ -560,34 +560,12 @@ class Solver():
         reactions = self.global_force_vector[:, 0].copy()
         reactions[self._free_dofs()] = 0.0
 
-        member_results: list[MemberResult] = []
-        extrema: dict[str, list[float]] = {key: [] for key in FORCE_KEYS}
-        for mbr in members.members.values():
-            sub_results = []
-            for submbr in mbr.submembers.values():
-                sub_results.append(SubMemberResult(
-                    submember=submbr,
-                    displacements=submbr.results['displacements'],
-                    forces={
-                        key: (float(submbr.results[key][0]),
-                              float(submbr.results[key][1]))
-                        for key in FORCE_KEYS
-                    },
-                    second_order_axial=float(submbr.second_order_axial),
-                ))
-                for key, values in submbr.force_extrema().items():
-                    extrema[key] += values
-            member_results.append(MemberResult(mbr, tuple(sub_results)))
-
         return Results(
             nodes=list(nodes.nodes.values()),
             displacements=self.global_displacement_vector,
             reactions=reactions,
-            members=member_results,
-            force_extrema={
-                key: (max(v, default=0.0), min(v, default=0.0))
-                for key, v in extrema.items()
-            },
+            members=[MemberResult.from_member(mbr)
+                     for mbr in members.members.values()],
             second_order=second_order,
             iterations=self.iterations,
         )

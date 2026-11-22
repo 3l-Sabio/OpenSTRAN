@@ -1,9 +1,11 @@
 """The Results object returned by Model.solve().
 
-Each test builds a cantilever along X, fixed at the origin (local x, y, z
-are global X, Y, Z), in kips and inches.
+Each test builds its own model, mostly a cantilever along X fixed at the
+origin, in kips and inches. Members along X have local x, y, z along
+global X, Y, Z.
 """
 import dataclasses
+import math
 
 import numpy as np
 import pytest
@@ -143,6 +145,10 @@ def test_end_forces_of_every_submember():
                                                          (L - b)*Q))
         assert sub.second_order_axial == 0.0
         assert sub.displacements.shape == (12,)
+        # Constant along the span, in the sign convention of the i end.
+        extrema = sub.force_extrema()
+        assert extrema['axial'] == pytest.approx((-N, -N))
+        assert extrema['torsional moments'] == pytest.approx((-T, -T))
 
 
 def test_results_do_not_change_when_the_model_is_solved_again():
@@ -342,3 +348,126 @@ def test_interrupt_while_collecting_second_order_results(
         assert sub.second_order_axial == 0.0
     for submember in member.submembers.values():
         assert submember.second_order_axial == 0.0
+
+
+def test_moments_and_shears_along_a_member():
+    # A simply supported beam under uniform loads in both planes. Midspan
+    # falls inside the middle of three submembers, so the peak moments lie
+    # between mesh nodes.
+    wy, wz = 0.1, 0.05   # kips per inch, in -Y and -Z
+    model = Model()
+    a = model.nodes.add_node(0, 0, 0)
+    b = model.nodes.add_node(L, 0, 0)
+    a.restraint = [1, 1, 1, 1, 0, 0]
+    b.restraint = [0, 1, 1, 0, 0, 0]
+    member = model.members.add_member(a, b, E=E, Ixx=I, Iyy=I, mesh=3)
+    member.add_distributed_load(-wy, -wy, 'Y', 0, 100)
+    member.add_distributed_load(-wz, -wz, 'Z', 0, 100)
+
+    results = model.solve()
+    beam = results.member(member)
+    for location in [0, 10, 30, 50, 75, 90, 100]:
+        x = L*location/100
+        assert beam.moment(location) == pytest.approx(
+            -wy*x*(L - x)/2, abs=1e-9)
+        assert beam.moment(location, 'minor') == pytest.approx(
+            wz*x*(L - x)/2, abs=1e-9)
+        assert beam.shear(location) == pytest.approx(wy*(L/2 - x), abs=1e-9)
+        assert beam.shear(location, 'minor') == pytest.approx(
+            wz*(L/2 - x), abs=1e-9)
+
+    middle = beam.submembers[1]   # from L/3 to 2L/3
+    x = L/2 - L/3
+    assert middle.moment(x) == pytest.approx(-wy*L**2/8)
+    assert middle.moment(x, 'minor') == pytest.approx(wz*L**2/8)
+    assert middle.shear(x) == pytest.approx(0.0, abs=1e-9)
+    assert middle.w_major == pytest.approx((-wy, -wy))
+    assert middle.w_minor == pytest.approx((-wz, -wz))
+    extrema = middle.force_extrema()
+    assert extrema['major axis moments'] == pytest.approx(
+        (-wy*L**2/9, -wy*L**2/8))
+    assert extrema['minor axis moments'] == pytest.approx(
+        (wz*L**2/8, wz*L**2/9))
+    assert extrema['shear'] == pytest.approx((wy*L/6, -wy*L/6))
+    assert results.Mzz_max == pytest.approx(wy*L**2/8)
+    assert results.Myy_max == pytest.approx(wz*L**2/8)
+    assert results.Vy_max == pytest.approx(wy*L/2)
+    assert results.Vz_max == pytest.approx(wz*L/2)
+
+
+def test_unknown_axis_raises():
+    model = Model()
+    base = model.nodes.add_node(0, 0, 0)
+    tip = model.nodes.add_node(L, 0, 0)
+    base.restraint = [1, 1, 1, 1, 1, 1]
+    member = model.members.add_member(
+        base, tip, E=E, Ixx=I, Iyy=I, mesh=MESH)
+    tip.add_load(-P, 'force', 'Y')
+
+    beam = model.solve().member(member)
+    with pytest.raises(ValueError):
+        beam.moment(50, 'y')
+    with pytest.raises(ValueError):
+        beam.shear(50, 'Major')
+    with pytest.raises(ValueError):
+        beam.submembers[0].moment(1.0, 'z')
+    with pytest.raises(ValueError):
+        beam.submembers[0].shear(1.0, 'minor axis')
+
+
+def test_second_order_results_do_not_change_after_the_critical_load():
+    # critical_load_factor() solves the model again to first order. The
+    # moments along the span of the earlier second-order results, with
+    # their P-delta part, must not change.
+    model = Model()
+    base = model.nodes.add_node(0, 0, 0)
+    tip = model.nodes.add_node(L, 0, 0)
+    base.restraint = [1, 1, 1, 1, 1, 1]
+    member = model.members.add_member(
+        base, tip, E=E, Ixx=I, Iyy=I, A=10.0, J=50.0, mesh=8)
+    member.add_distributed_load(-0.01, -0.01, 'Y', 0, 100)
+    tip.add_load(-P, 'force', 'Y')
+    tip.add_load(-50.0, 'force', 'X')   # compression
+
+    first = model.solve()
+    second = model.solve(second_order=True)
+    beam = second.member(member)
+    sub = beam.submembers[3]
+    moment, shear = beam.moment(45), beam.shear(45)
+    extrema = sub.force_extrema()
+    peak = second.Mzz_max
+    assert abs(moment) > abs(first.member(member).moment(45)) + 1.0
+
+    assert model.critical_load_factor() > 1.0
+    assert beam.moment(45) == moment
+    assert beam.shear(45) == shear
+    assert sub.force_extrema() == extrema
+    assert second.Mzz_max == peak
+    assert sub.second_order_axial == pytest.approx(-50.0)
+
+
+def test_second_order_moments_inside_the_span_about_both_axes():
+    # A pinned beam-column under compression and uniform loads in both
+    # planes. The exact midspan moment about each axis is
+    # w/k^2 (sec(kL/2) - 1), with k^2 = P/(E I) for that axis. Nine
+    # elements put midspan inside a submember, so the moment there comes
+    # from the P-delta deflected shape between the mesh nodes.
+    wy, wz = 0.05, 0.03
+    Iyy = 0.4*I
+    Pc = 0.3*math.pi**2*E*Iyy/L**2   # 30% of the minor-axis Euler load
+    model = Model()
+    a = model.nodes.add_node(0, 0, 0)
+    b = model.nodes.add_node(L, 0, 0)
+    a.restraint = [1, 1, 1, 1, 0, 0]
+    b.restraint = [0, 1, 1, 0, 0, 0]
+    member = model.members.add_member(
+        a, b, E=E, Ixx=I, Iyy=Iyy, A=10.0, J=50.0, mesh=9)
+    member.add_distributed_load(-wy, -wy, 'Y', 0, 100)
+    member.add_distributed_load(-wz, -wz, 'Z', 0, 100)
+    b.add_load(-Pc, 'force', 'X')
+
+    beam = model.solve(second_order=True).member(member)
+    for axis, w, inertia in [('major', wy, I), ('minor', wz, Iyy)]:
+        k = math.sqrt(Pc/(E*inertia))
+        exact = w/k**2*(1/math.cos(k*L/2) - 1)
+        assert abs(beam.moment(50, axis)) == pytest.approx(exact, rel=1e-4)
