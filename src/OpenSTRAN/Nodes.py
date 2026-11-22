@@ -44,7 +44,9 @@ class Nodes():
             mesh_node (bool, optional): Whether this is a mesh node. Defaults to False.
 
         Returns:
-            Node: The added or existing node object.
+            Node: The added or existing node object. An existing mesh node,
+            for example one a point load created, becomes a user node
+            unless ``mesh_node`` is True.
 
         Example:
 
@@ -67,6 +69,10 @@ class Nodes():
                 mesh_node=mesh_node
             )
             self.nodes[self.count] = node
+        elif not mesh_node:
+            # The user added this node, so report it like the other nodes
+            # the user added (for example in Model.reactions).
+            node.mesh_node = False
         return node
 
     def find_node(self, x: float, y: float, z: float) -> Node | None:

@@ -1,6 +1,7 @@
 from .Nodes import Nodes
 from .Members import Members
 from .Submember import SubMember
+from .Results import FORCE_KEYS, MemberResult, Results, SubMemberResult
 
 import numpy as np
 from scipy.linalg import solve, cho_factor, cho_solve, eigh, LinAlgError
@@ -23,9 +24,9 @@ class Solver():
         iterations (int): Number of iterations performed by the last
             second-order analysis; 0 for a first-order analysis or after a
             failed second-order analysis.
-        has_results (bool): Whether the last solve recovered results. False
-            if it failed before the first-order solution; after a failed
-            second-order analysis the results are the first-order ones.
+        results (Results | None): Results of the last solve. None if it
+            failed before the first-order solution; after a failed
+            second-order analysis, the first-order results.
         force_vector (numpy.ndarray | None): Global force vector with applied loads.
         global_displacement_vector (numpy.ndarray | None): Global displacement vector at all nodes.
         global_force_vector (numpy.ndarray | None): Global reaction force vector.
@@ -42,7 +43,7 @@ class Solver():
         self.Kp: np.ndarray | None = None
         self.Kt: np.ndarray | None = None
         self.iterations: int = 0
-        self.has_results: bool = False
+        self.results: Results | None = None
         self.force_vector: np.ndarray | None = None
         self.global_displacement_vector: np.ndarray | None = None
         self.global_force_vector: np.ndarray | None = None
@@ -54,7 +55,7 @@ class Solver():
         second_order: bool = False,
         tolerance: float = 1e-8,
         max_iterations: int = 50
-    ) -> None:
+    ) -> Results:
         """Solve the structural system for displacements and member forces.
 
         This method performs a complete finite element analysis including:
@@ -87,6 +88,9 @@ class Solver():
             max_iterations (int, optional): Maximum number of iterations of a
                 second-order analysis. Defaults to 50.
 
+        Returns:
+            Results: The results of the analysis, also kept as ``results``.
+
         Raises:
             RuntimeError: If a second-order analysis does not converge, or if
                 its tangent stiffness stops being positive definite (the loads
@@ -96,7 +100,7 @@ class Solver():
         """
         self.Kt = None
         self.iterations = 0
-        self.has_results = False
+        self.results = None
         self._setup(nodes)
 
         # First-order analysis with the elastic stiffness of each submember.
@@ -107,15 +111,16 @@ class Solver():
         self.Kp = self._assemble(elastic)
         self.global_displacement_vector = self._solve_free(self.Kp)
         self._recover(elastic, self.Kp)
-        self.has_results = True
 
         if not second_order:
-            return
+            self.results = self._results(nodes, members, second_order=False)
+            return self.results
 
         first_order = self.global_displacement_vector.copy()
         completed = False
         try:
             self._second_order(nodes, submembers, tolerance, max_iterations)
+            self.results = self._results(nodes, members, second_order=True)
             completed = True
         finally:
             if not completed:
@@ -128,6 +133,9 @@ class Solver():
                 self._recover(elastic, self.Kp)
                 self.Kt = None
                 self.iterations = 0
+                self.results = self._results(
+                    nodes, members, second_order=False)
+        return self.results
 
     def critical_load_factor(self, nodes: Nodes, members: Members) -> float:
         """Elastic critical load factor of the applied loads.
@@ -506,17 +514,8 @@ class Solver():
             submbr.results['major axis moments'] = [
                 forces[5], forces[11]]
 
-        # Remove the influence of equivalent nodal actions from member forces
-        # and store the nodal results.
+        # Remove the influence of equivalent nodal actions from member forces.
         for submbr, _ in local_matrices:
-
-            # Determine DOFs associated with the submember nodes.
-            ia = submbr.node_i.node_ID*6-6
-            ib = submbr.node_i.node_ID*6-1
-            ja = submbr.node_j.node_ID*6-6
-            jb = submbr.node_j.node_ID*6-1
-
-            # Remove influence of equivalent nodal actions from member forces.
 
             submbr.results['axial'][0] = submbr.results['axial'][0] - \
                 submbr.ENAs['axial'][0]
@@ -548,35 +547,50 @@ class Solver():
             submbr.results['minor axis moments'][1] = submbr.results['minor axis moments'][1] - \
                 submbr.ENAs['minor axis moments'][1]
 
-            # Store nodal reactions.
-            if submbr.node_i.mesh_node is not True:
-                submbr.node_i.Rx = self.global_force_vector[ia][0]
-                submbr.node_i.Ry = self.global_force_vector[ia+1][0]
-                submbr.node_i.Rz = self.global_force_vector[ia+2][0]
-                submbr.node_i.Rmx = self.global_force_vector[ia+3][0]
-                submbr.node_i.Rmy = self.global_force_vector[ia+4][0]
-                submbr.node_i.Rmz = self.global_force_vector[ib][0]
-            if submbr.node_j.mesh_node is not True:
-                submbr.node_j.Rx = self.global_force_vector[ja][0]
-                submbr.node_j.Ry = self.global_force_vector[ja+1][0]
-                submbr.node_j.Rz = self.global_force_vector[ja+2][0]
-                submbr.node_j.Rmx = self.global_force_vector[ja+3][0]
-                submbr.node_j.Rmy = self.global_force_vector[ja+4][0]
-                submbr.node_j.Rmz = self.global_force_vector[jb][0]
+    def _results(
+        self, nodes: Nodes, members: Members, second_order: bool
+    ) -> Results:
+        """Collect the recovered displacements, reactions and member forces
+        into a Results object that later solves do not change."""
+        assert self.global_displacement_vector is not None
+        assert self.global_force_vector is not None
 
-            # Store nodal displacements.
-            submbr.node_i.Ux = self.global_displacement_vector[ia][0]
-            submbr.node_i.Uy = self.global_displacement_vector[ia+1][0]
-            submbr.node_i.Uz = self.global_displacement_vector[ia+2][0]
-            submbr.node_i.phi_x = self.global_displacement_vector[ia+3][0]
-            submbr.node_i.phi_y = self.global_displacement_vector[ia+4][0]
-            submbr.node_i.phi_z = self.global_displacement_vector[ib][0]
-            submbr.node_j.Ux = self.global_displacement_vector[ja][0]
-            submbr.node_j.Uy = self.global_displacement_vector[ja+1][0]
-            submbr.node_j.Uz = self.global_displacement_vector[ja+2][0]
-            submbr.node_j.phi_x = self.global_displacement_vector[ja+3][0]
-            submbr.node_j.phi_y = self.global_displacement_vector[ja+4][0]
-            submbr.node_j.phi_z = self.global_displacement_vector[jb][0]
+        # Reactions exist only at the restrained degrees of freedom; at the
+        # others K U - F is rounding error.
+        reactions = self.global_force_vector[:, 0].copy()
+        reactions[self._free_dofs()] = 0.0
+
+        member_results: list[MemberResult] = []
+        extrema: dict[str, list[float]] = {key: [] for key in FORCE_KEYS}
+        for mbr in members.members.values():
+            sub_results = []
+            for submbr in mbr.submembers.values():
+                sub_results.append(SubMemberResult(
+                    submember=submbr,
+                    displacements=submbr.results['displacements'],
+                    forces={
+                        key: (float(submbr.results[key][0]),
+                              float(submbr.results[key][1]))
+                        for key in FORCE_KEYS
+                    },
+                    second_order_axial=float(submbr.second_order_axial),
+                ))
+                for key, values in submbr.force_extrema().items():
+                    extrema[key] += values
+            member_results.append(MemberResult(mbr, tuple(sub_results)))
+
+        return Results(
+            nodes=list(nodes.nodes.values()),
+            displacements=self.global_displacement_vector,
+            reactions=reactions,
+            members=member_results,
+            force_extrema={
+                key: (max(v, default=0.0), min(v, default=0.0))
+                for key, v in extrema.items()
+            },
+            second_order=second_order,
+            iterations=self.iterations,
+        )
 
     @staticmethod
     def _add_member(

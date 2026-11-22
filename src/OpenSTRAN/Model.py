@@ -2,6 +2,7 @@ import numpy as np
 
 from .Nodes import Nodes
 from .Members import Members
+from .Results import FORCE_KEYS, Results
 from .Solver import Solver
 
 
@@ -20,6 +21,8 @@ class Model():
         nodes (Nodes): Collection of nodes in the structure.
         members (Members): Collection of members (elements) in the structure.
         solver (Solver): Solver instance for performing structural analysis.
+        results (Results | None): Results of the last analysis, or None
+            before the first.
 
     Example:
 
@@ -38,13 +41,14 @@ class Model():
         self.nodes = Nodes(plane)
         self.members = Members(self.nodes)
         self.solver = Solver()
+        self.results: Results | None = None
 
     def solve(
         self,
         second_order: bool = False,
         tolerance: float = 1e-8,
         max_iterations: int = 50
-    ) -> None:
+    ) -> Results:
         """Solve the structural system and compute reactions and member forces.
 
         This method performs a complete finite element analysis including:
@@ -74,6 +78,9 @@ class Model():
             max_iterations (int, optional): Maximum number of iterations of a
                 second-order analysis. Defaults to 50.
 
+        Returns:
+            Results: The results of the analysis, also kept as ``results``.
+
         Raises:
             RuntimeError: If a second-order analysis does not converge, or the
                 loads are most likely at or above the second-order limit load.
@@ -87,9 +94,10 @@ class Model():
                 tolerance=tolerance, max_iterations=max_iterations)
         finally:
             # A failed second-order analysis leaves the first-order solution;
-            # a failed first-order analysis leaves no results.
-            if self.solver.has_results:
-                self._find_maxima()
+            # a failed first-order analysis leaves the previous results.
+            self._publish()
+        assert self.results is not None
+        return self.results
 
     def critical_load_factor(self) -> float:
         """Elastic critical load factor of the applied loads.
@@ -113,11 +121,26 @@ class Model():
             return self.solver.critical_load_factor(self.nodes, self.members)
         finally:
             # The model holds the first-order solution, unless that failed.
-            if self.solver.has_results:
-                self._find_maxima()
+            self._publish()
 
-    def _find_maxima(self) -> None:
-        """Update the maximum reactions and member forces."""
+    def _publish(self) -> None:
+        """Keep the solver's results and copy them onto the old attributes.
+
+        Temporary, while the node and model result attributes are replaced
+        by ``results``: copies each node's displacements and reactions onto
+        the node, and the maxima onto the model. Does nothing if the solver
+        holds no results.
+        """
+        results = self.solver.results
+        if results is None:
+            return
+        self.results = results
+        for node in self.nodes.nodes.values():
+            r = results.node(node)
+            node.Ux, node.Uy, node.Uz = r.Ux, r.Uy, r.Uz
+            node.phi_x, node.phi_y, node.phi_z = r.phi_x, r.phi_y, r.phi_z
+            node.Rx, node.Ry, node.Rz = r.Rx, r.Ry, r.Rz
+            node.Rmx, node.Rmy, node.Rmz = r.Rmx, r.Rmy, r.Rmz
         self.maxReactions()
         self.maxMbrForces()
 
@@ -145,28 +168,13 @@ class Model():
         * Rmy_max: Maximum Y-direction reaction moment
         * Rmz_max: Maximum Z-direction reaction moment
         """
-        Rx: list[float] = []
-        Ry: list[float] = []
-        Rz: list[float] = []
-        Rmx: list[float] = []
-        Rmy: list[float] = []
-        Rmz: list[float] = []
-
-        for node in self.nodes.nodes.values():
-            if node.mesh_node == False:
-                Rx.append(node.Rx)
-                Ry.append(node.Ry)
-                Rz.append(node.Rz)
-                Rmx.append(node.Rmx)
-                Rmy.append(node.Rmy)
-                Rmz.append(node.Rmz)
-
-        self.Rx_max = abs(max(Rx, key=lambda x: abs(x)))
-        self.Ry_max = abs(max(Ry, key=lambda x: abs(x)))
-        self.Rz_max = abs(max(Rz, key=lambda x: abs(x)))
-        self.Rmx_max = abs(max(Rmx, key=lambda x: abs(x)))
-        self.Rmy_max = abs(max(Rmy, key=lambda x: abs(x)))
-        self.Rmz_max = abs(max(Rmz, key=lambda x: abs(x)))
+        assert self.results is not None
+        self.Rx_max = self.results.Rx_max
+        self.Ry_max = self.results.Ry_max
+        self.Rz_max = self.results.Rz_max
+        self.Rmx_max = self.results.Rmx_max
+        self.Rmy_max = self.results.Rmy_max
+        self.Rmz_max = self.results.Rmz_max
 
     def maxMbrForces(self) -> None:
         """Calculate maximum member forces and identify local extrema.
@@ -184,77 +192,39 @@ class Model():
         * Mzz_max, Mzz_maxima, Mzz_minima: Major axis bending moment results
         * Myy_max, Myy_maxima, Myy_minima: Minor axis bending moment results
         """
-        axial: list[float] = []
-        torque: list[float] = []
-        Vy: list[float] = []
-        Vz: list[float] = []
-        Mzz: list[float] = []
-        Myy: list[float] = []
+        assert self.results is not None
+        results = self.results
 
-        for mbr in self.members.members.values():
-            for submbr in mbr.submembers.values():
-                axial.append(submbr.results['axial'][0])
-                axial.append(submbr.results['axial'][1]*-1)
-                torque.append(submbr.results['torsional moments'][0])
-                torque.append(submbr.results['torsional moments'][1]*-1)
-                Vy.append(submbr.results['shear'][0])
-                Vy.append(submbr.results['shear'][1]*-1)
-                Vz.append(submbr.results['transverse shear'][0])
-                Vz.append(submbr.results['transverse shear'][1]*-1)
-                Mzz.append(submbr.results['major axis moments'][0])
-                Mzz.append(submbr.results['major axis moments'][1]*-1)
-                Myy.append(submbr.results['minor axis moments'][0])
-                Myy.append(submbr.results['minor axis moments'][1]*-1)
+        # Each submember's end forces, with the j end's sign flipped so that
+        # both ends follow the same internal force sign convention.
+        ends: dict[str, list[float]] = {key: [] for key in FORCE_KEYS}
+        for mbr in results.members:
+            for sub in mbr.submembers:
+                for key, values in ends.items():
+                    values.append(sub.forces[key][0])
+                    values.append(-sub.forces[key][1])
 
-        self.axial_max = abs(max(axial, key=lambda x: abs(x)))
-        self.axial_maxima = self.localMaxima(axial)
-        self.axial_minima = self.localMinima(axial)
+        self.axial_maxima = self.localMaxima(ends['axial'])
+        self.axial_minima = self.localMinima(ends['axial'])
+        self.torque_maxima = self.localMaxima(ends['torsional moments'])
+        self.torque_minima = self.localMinima(ends['torsional moments'])
+        self.Vy_maxima = self.localMaxima(ends['shear'])
+        self.Vy_minima = self.localMinima(ends['shear'])
+        self.Vz_maxima = self.localMaxima(ends['transverse shear'])
+        self.Vz_minima = self.localMinima(ends['transverse shear'])
+        self.Mzz_maxima = self.localMaxima(ends['major axis moments'])
+        self.Mzz_minima = self.localMinima(ends['major axis moments'])
+        self.Myy_maxima = self.localMaxima(ends['minor axis moments'])
+        self.Myy_minima = self.localMinima(ends['minor axis moments'])
 
-        self.torque_max = abs(max(torque, key=lambda x: abs(x)))
-        self.torque_maxima = self.localMaxima(torque)
-        self.torque_minima = self.localMinima(torque)
-
-        self.Vy_max = abs(max(Vy, key=lambda x: abs(x)))
-        self.Vy_maxima = self.localMaxima(Vy)
-        self.Vy_minima = self.localMinima(Vy)
-
-        self.Vz_max = abs(max(Vz, key=lambda x: abs(x)))
-        self.Vz_maxima = self.localMaxima(Vz)
-        self.Vz_minima = self.localMinima(Vz)
-
-        self.Mzz_max = abs(max(Mzz, key=lambda x: abs(x)))
-        self.Mzz_maxima = self.localMaxima(Mzz)
-        self.Mzz_minima = self.localMinima(Mzz)
-
-        self.Myy_max = abs(max(Myy, key=lambda x: abs(x)))
-        self.Myy_maxima = self.localMaxima(Myy)
-        self.Myy_minima = self.localMinima(Myy)
-
-        # Override the peak magnitudes with exact closed-form extrema so that
-        # peaks occurring between mesh nodes (e.g. under distributed loads) are
-        # captured rather than only the values sampled at the nodes.
-        axial_ext: list[float] = []
-        torque_ext: list[float] = []
-        Vy_ext: list[float] = []
-        Vz_ext: list[float] = []
-        Mzz_ext: list[float] = []
-        Myy_ext: list[float] = []
-        for mbr in self.members.members.values():
-            for submbr in mbr.submembers.values():
-                extrema = submbr.force_extrema()
-                axial_ext += list(extrema['axial'])
-                torque_ext += list(extrema['torsional moments'])
-                Vy_ext += list(extrema['shear'])
-                Vz_ext += list(extrema['transverse shear'])
-                Mzz_ext += list(extrema['major axis moments'])
-                Myy_ext += list(extrema['minor axis moments'])
-
-        self.axial_max = abs(max(axial_ext, key=lambda x: abs(x)))
-        self.torque_max = abs(max(torque_ext, key=lambda x: abs(x)))
-        self.Vy_max = abs(max(Vy_ext, key=lambda x: abs(x)))
-        self.Vz_max = abs(max(Vz_ext, key=lambda x: abs(x)))
-        self.Mzz_max = abs(max(Mzz_ext, key=lambda x: abs(x)))
-        self.Myy_max = abs(max(Myy_ext, key=lambda x: abs(x)))
+        # The peak magnitudes include the peaks between mesh nodes (e.g.
+        # under distributed loads), not only the values at the nodes.
+        self.axial_max = results.axial_max
+        self.torque_max = results.torque_max
+        self.Vy_max = results.Vy_max
+        self.Vz_max = results.Vz_max
+        self.Mzz_max = results.Mzz_max
+        self.Myy_max = results.Myy_max
 
     def localMaxima(self, forces: list[float]) -> list[bool]:
         """Identify local maxima in a force distribution.
@@ -358,13 +328,9 @@ class Model():
                 print(f'\t\tMz = {tidy(node.Rmz):.2f} kip-in')
 
     def max_deflection(self) -> None:
-        Ux: list[float] = []
-        Uy: list[float] = []
-        Uz: list[float] = []
-        for node in self.nodes.nodes.values():
-            Ux.append(node.Ux)
-            Uy.append(node.Uy)
-            Uz.append(node.Uz)
-        self.Ux_max = abs(max(Ux, key=lambda x: abs(x)))
-        self.Uy_max = abs(max(Uy, key=lambda x: abs(x)))
-        self.Uz_max = abs(max(Uz, key=lambda x: abs(x)))
+        """Copy the maximum translations of the last results onto the model
+        as ``Ux_max``, ``Uy_max`` and ``Uz_max``."""
+        assert self.results is not None
+        self.Ux_max = self.results.Ux_max
+        self.Uy_max = self.results.Uy_max
+        self.Uz_max = self.results.Uz_max
