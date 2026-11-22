@@ -3,6 +3,7 @@ import pytest
 from OpenSTRAN import Model
 from OpenSTRAN.Member import Member
 from OpenSTRAN.Node import Node
+from OpenSTRAN.Results import Results
 
 
 # Worked examples from Chapter 9 of W. McGuire, R. H. Gallagher and
@@ -235,6 +236,7 @@ class TestExample9_5_TwoStoryFrameFirstOrder:
     ab: Member
     bc: Member
     bd: Member
+    results: Results
 
     @pytest.fixture(autouse=True, scope="class")
     @classmethod
@@ -265,17 +267,13 @@ class TestExample9_5_TwoStoryFrameFirstOrder:
         c.add_load(-cls.P, 'force', 'Y')
         c.add_load(cls.ALPHA * cls.P, 'force', 'X')
         b.add_load(cls.ALPHA * cls.P, 'force', 'X')
-        model.solve()
+        cls.results = model.solve()
 
     def test_moments(self):
-        moments = [
-            next(iter(self.bc.submembers.values())
-                 ).results['major axis moments'][1],
-            next(iter(self.ab.submembers.values())
-                 ).results['major axis moments'][1],
-            next(iter(self.bd.submembers.values())
-                 ).results['major axis moments'][0],
-        ]
+        bc, ab, bd = (
+            self.results.member(m).submembers[0].forces['major axis moments']
+            for m in (self.bc, self.ab, self.bd))
+        moments = [bc[1], ab[1], bd[0]]
         assert [m / 1000 for m in moments] == pytest.approx(
             self.BOOK_MOMENTS, rel=self.RTOL)
 
@@ -288,10 +286,11 @@ class TestExample9_5_TwoStoryFrameFirstOrder:
         sum_mz = (-self.c.coordinates.y * self.ALPHA * self.P
                   - self.b.coordinates.y * self.ALPHA * self.P)
         for node in (self.a, self.d, self.e):
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += (node.Rmz + node.coordinates.x * node.Ry
-                       - node.coordinates.y * node.Rx)
+            r = self.results.node(node)
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += (r.Rmz + node.coordinates.x * r.Ry
+                       - node.coordinates.y * r.Rx)
 
         assert sum_fx == pytest.approx(0, abs=1e-6)
         assert sum_fy == pytest.approx(0, abs=1e-6)
@@ -319,6 +318,7 @@ class TestExample9_5_TwoStoryFrameSecondOrder:
     ab: Member
     bc: Member
     bd: Member
+    results: Results
 
     @pytest.fixture(autouse=True, scope="class")
     @classmethod
@@ -349,17 +349,13 @@ class TestExample9_5_TwoStoryFrameSecondOrder:
         c.add_load(-cls.P, 'force', 'Y')
         c.add_load(cls.ALPHA * cls.P, 'force', 'X')
         b.add_load(cls.ALPHA * cls.P, 'force', 'X')
-        model.solve(second_order=True)
+        cls.results = model.solve(second_order=True)
 
     def test_moments(self):
-        moments = [
-            next(iter(self.bc.submembers.values())
-                 ).results['major axis moments'][1],
-            next(iter(self.ab.submembers.values())
-                 ).results['major axis moments'][1],
-            next(iter(self.bd.submembers.values())
-                 ).results['major axis moments'][0],
-        ]
+        bc, ab, bd = (
+            self.results.member(m).submembers[0].forces['major axis moments']
+            for m in (self.bc, self.ab, self.bd))
+        moments = [bc[1], ab[1], bd[0]]
         assert [m / 1000 for m in moments] == pytest.approx(
             self.BOOK_MOMENTS, rel=self.RTOL)
 
@@ -374,18 +370,20 @@ class TestExample9_5_TwoStoryFrameSecondOrder:
 
         sum_fx = sum_fy = sum_mz = p_delta = 0.0
         for node, fx, fy in loads:
-            x = node.coordinates.x + node.Ux
-            y = node.coordinates.y + node.Uy
+            u = self.results.node(node)
+            x = node.coordinates.x + u.Ux
+            y = node.coordinates.y + u.Uy
             sum_fx += fx
             sum_fy += fy
             sum_mz += x * fy - y * fx
-            p_delta += abs(node.Ux * fy) + abs(node.Uy * fx)
+            p_delta += abs(u.Ux * fy) + abs(u.Uy * fx)
         for node in (self.a, self.d, self.e):
-            x = node.coordinates.x + node.Ux
-            y = node.coordinates.y + node.Uy
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += node.Rmz + x * node.Ry - y * node.Rx
+            r = self.results.node(node)
+            x = node.coordinates.x + r.Ux
+            y = node.coordinates.y + r.Uy
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += r.Rmz + x * r.Ry - y * r.Rx
 
         assert sum_fx == pytest.approx(0, abs=1e-6)
         assert sum_fy == pytest.approx(0, abs=1e-6)
@@ -463,6 +461,7 @@ class TestExample9_6_PortalFrameFirstOrder:
     e: Node
     bc: Member
     cd: Member
+    results: Results
 
     @pytest.fixture(autouse=True, scope="class")
     @classmethod
@@ -492,13 +491,12 @@ class TestExample9_6_PortalFrameFirstOrder:
         b.add_load(6.0, 'force', 'X')
         c.add_load(-60.0, 'force', 'Y')
         d.add_load(-120.0, 'force', 'Y')
-        model.solve()
+        cls.results = model.solve()
 
     def test_girder_moments(self):
-        bc_end = next(iter(self.bc.submembers.values())
-                      ).results['major axis moments']
-        cd_end = next(iter(self.cd.submembers.values())
-                      ).results['major axis moments']
+        bc_end, cd_end = (
+            self.results.member(m).submembers[0].forces['major axis moments']
+            for m in (self.bc, self.cd))
         assert [bc_end[0], bc_end[1], cd_end[1]] == pytest.approx(
             self.BOOK_MOMENTS, rel=self.RTOL)
 
@@ -513,10 +511,11 @@ class TestExample9_6_PortalFrameFirstOrder:
             sum_fy += fy
             sum_mz += node.coordinates.x * fy - node.coordinates.y * fx
         for node in (self.a, self.e):
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += (node.Rmz + node.coordinates.x * node.Ry
-                       - node.coordinates.y * node.Rx)
+            r = self.results.node(node)
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += (r.Rmz + node.coordinates.x * r.Ry
+                       - node.coordinates.y * r.Rx)
 
         assert sum_fx == pytest.approx(0, abs=1e-9 * 180)
         assert sum_fy == pytest.approx(0, abs=1e-9 * 180)
@@ -547,6 +546,7 @@ class TestExample9_6_PortalFrameSecondOrder:
     bc: Member
     cd: Member
     ed: Member
+    results: Results
 
     @pytest.fixture(autouse=True, scope="class")
     @classmethod
@@ -576,19 +576,18 @@ class TestExample9_6_PortalFrameSecondOrder:
         b.add_load(6.0, 'force', 'X')
         c.add_load(-60.0, 'force', 'Y')
         d.add_load(-120.0, 'force', 'Y')
-        model.solve(second_order=True)
+        cls.results = model.solve(second_order=True)
 
     def test_girder_moments(self):
-        bc_end = next(iter(self.bc.submembers.values())
-                      ).results['major axis moments']
-        cd_end = next(iter(self.cd.submembers.values())
-                      ).results['major axis moments']
+        bc_end, cd_end = (
+            self.results.member(m).submembers[0].forces['major axis moments']
+            for m in (self.bc, self.cd))
         assert [bc_end[0], bc_end[1], cd_end[1]] == pytest.approx(
             self.BOOK_MOMENTS, rel=self.RTOL)
 
     def test_moment_at_mid_height_of_ed(self):
-        lower = next(iter(self.ed.submembers.values()))
-        assert lower.results['major axis moments'][1] == pytest.approx(
+        lower = self.results.member(self.ed).submembers[0]
+        assert lower.forces['major axis moments'][1] == pytest.approx(
             self.BOOK_MID_ED, rel=self.RTOL)
 
     def test_equilibrium_on_deformed_geometry(self):
@@ -599,18 +598,20 @@ class TestExample9_6_PortalFrameSecondOrder:
 
         sum_fx = sum_fy = sum_mz = p_delta = 0.0
         for node, fx, fy in loads:
-            x = node.coordinates.x + node.Ux
-            y = node.coordinates.y + node.Uy
+            u = self.results.node(node)
+            x = node.coordinates.x + u.Ux
+            y = node.coordinates.y + u.Uy
             sum_fx += fx
             sum_fy += fy
             sum_mz += x * fy - y * fx
-            p_delta += abs(node.Ux * fy) + abs(node.Uy * fx)
+            p_delta += abs(u.Ux * fy) + abs(u.Uy * fx)
         for node in (self.a, self.e):
-            x = node.coordinates.x + node.Ux
-            y = node.coordinates.y + node.Uy
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += node.Rmz + x * node.Ry - y * node.Rx
+            r = self.results.node(node)
+            x = node.coordinates.x + r.Ux
+            y = node.coordinates.y + r.Uy
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += r.Rmz + x * r.Ry - y * r.Rx
 
         assert sum_fx == pytest.approx(0, abs=1e-6)
         assert sum_fy == pytest.approx(0, abs=1e-6)

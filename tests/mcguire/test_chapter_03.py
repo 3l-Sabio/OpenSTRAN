@@ -83,22 +83,24 @@ class TestExample3_2_TriangularTruss:
         cls.a.add_load(cls.PX, 'force', 'X')
         cls.a.add_load(cls.PY, 'force', 'Y')
 
-        cls.model.solve()
+        cls.results = cls.model.solve()
 
     def test_displacements(self):
+        a, b = (self.results.node(x) for x in (self.a, self.b))
         np.testing.assert_allclose(
-            [self.a.Ux, self.a.Uy, self.b.Ux], self.BOOK_DISPLACEMENTS,
+            [a.Ux, a.Uy, b.Ux], self.BOOK_DISPLACEMENTS,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions(self):
+        b, c = (self.results.node(x) for x in (self.b, self.c))
         np.testing.assert_allclose(
-            [self.b.Ry, self.c.Rx, self.c.Ry], self.BOOK_REACTIONS,
+            [b.Ry, c.Rx, c.Ry], self.BOOK_REACTIONS,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_bar_forces(self):
         # With one element per bar, the axial result at the j end of the
         # bar's only submember is its tension.
-        forces = [next(iter(bar.submembers.values())).results['axial'][1]
+        forces = [self.results.member(bar).submembers[0].forces['axial'][1]
                   for bar in (self.ab, self.bc, self.ac)]
         np.testing.assert_allclose(
             forces, self.BOOK_BAR_FORCES, rtol=self.RTOL, atol=self.ATOL)
@@ -113,10 +115,11 @@ class TestExample3_2_TriangularTruss:
         sum_mz = (self.a.coordinates.x * self.PY
                   - self.a.coordinates.y * self.PX)
         for node in (self.b, self.c):
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += (node.Rmz + node.coordinates.x * node.Ry
-                       - node.coordinates.y * node.Rx)
+            r = self.results.node(node)
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += (r.Rmz + node.coordinates.x * r.Ry
+                       - node.coordinates.y * r.Rx)
 
         assert sum_fx == pytest.approx(0, abs=1e-9 * 500)
         assert sum_fy == pytest.approx(0, abs=1e-9 * 500)
@@ -174,16 +177,18 @@ class TestExample3_3_TriangularTrussWithTie:
         cls.a.add_load(cls.PX, 'force', 'X')
         cls.a.add_load(cls.PY, 'force', 'Y')
 
-        cls.model.solve()
+        cls.results = cls.model.solve()
 
     def test_displacements(self):
+        a, b = (self.results.node(x) for x in (self.a, self.b))
         np.testing.assert_allclose(
-            [self.a.Ux, self.a.Uy, self.b.Ux], self.BOOK_DISPLACEMENTS,
+            [a.Ux, a.Uy, b.Ux], self.BOOK_DISPLACEMENTS,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions(self):
+        b, c, d = (self.results.node(x) for x in (self.b, self.c, self.d))
         np.testing.assert_allclose(
-            [self.b.Ry, self.c.Rx, self.c.Ry, self.d.Rx],
+            [b.Ry, c.Rx, c.Ry, d.Rx],
             self.BOOK_REACTIONS, rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions_balance_the_loads(self):
@@ -196,10 +201,11 @@ class TestExample3_3_TriangularTrussWithTie:
         sum_mz = (self.a.coordinates.x * self.PY
                   - self.a.coordinates.y * self.PX)
         for node in (self.b, self.c, self.d):
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += (node.Rmz + node.coordinates.x * node.Ry
-                       - node.coordinates.y * node.Rx)
+            r = self.results.node(node)
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += (r.Rmz + node.coordinates.x * r.Ry
+                       - node.coordinates.y * r.Rx)
 
         assert sum_fx == pytest.approx(0, abs=1e-9 * 500)
         assert sum_fy == pytest.approx(0, abs=1e-9 * 500)
@@ -279,24 +285,25 @@ class TestExample3_5_TrussOnPinAndRoller:
         cls.d.add_load(cls.PX, 'force', 'X')
         cls.d.add_load(cls.PY, 'force', 'Y')
 
-        cls.model.solve()
+        cls.results = cls.model.solve()
 
     def test_displacements(self):
-        b, c, d = self.b, self.c, self.d
+        b, c, d = (self.results.node(x) for x in (self.b, self.c, self.d))
         np.testing.assert_allclose(
             [b.Ux, c.Ux, c.Uy, d.Ux, d.Uy], self.BOOK_DISPLACEMENTS,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions(self):
+        a, b = (self.results.node(x) for x in (self.a, self.b))
         np.testing.assert_allclose(
-            [self.a.Rx, self.a.Ry, self.b.Ry], self.BOOK_REACTIONS,
+            [a.Rx, a.Ry, b.Ry], self.BOOK_REACTIONS,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_bar_forces(self):
         # With one element per bar, the axial result at the j end of the
         # bar's only submember is its tension.
         bars = (self.ab, self.cd, self.ac, self.bd, self.bc)
-        forces = [next(iter(bar.submembers.values())).results['axial'][1]
+        forces = [self.results.member(bar).submembers[0].forces['axial'][1]
                   for bar in bars]
         np.testing.assert_allclose(
             forces, self.BOOK_BAR_FORCES, rtol=self.RTOL, atol=self.ATOL)
@@ -311,10 +318,11 @@ class TestExample3_5_TrussOnPinAndRoller:
         sum_mz = (self.d.coordinates.x * self.PY
                   - self.d.coordinates.y * self.PX)
         for node in (self.a, self.b):
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += (node.Rmz + node.coordinates.x * node.Ry
-                       - node.coordinates.y * node.Rx)
+            r = self.results.node(node)
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += (r.Rmz + node.coordinates.x * r.Ry
+                       - node.coordinates.y * r.Rx)
 
         assert sum_fx == pytest.approx(0, abs=1e-9 * 400)
         assert sum_fy == pytest.approx(0, abs=1e-9 * 400)
@@ -374,11 +382,12 @@ class TestExample3_6_TrussWithExtraRestraints:
         cls.d.add_load(cls.PX, 'force', 'X')
         cls.d.add_load(cls.PY, 'force', 'Y')
 
-        cls.model.solve()
+        cls.results = cls.model.solve()
 
     def test_displacements(self):
+        c, d = (self.results.node(x) for x in (self.c, self.d))
         np.testing.assert_allclose(
-            [self.c.Uy, self.d.Ux, self.d.Uy], self.BOOK_DISPLACEMENTS,
+            [c.Uy, d.Ux, d.Uy], self.BOOK_DISPLACEMENTS,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions_balance_the_loads(self):
@@ -391,10 +400,11 @@ class TestExample3_6_TrussWithExtraRestraints:
         sum_mz = (self.d.coordinates.x * self.PY
                   - self.d.coordinates.y * self.PX)
         for node in (self.a, self.b, self.c):
-            sum_fx += node.Rx
-            sum_fy += node.Ry
-            sum_mz += (node.Rmz + node.coordinates.x * node.Ry
-                       - node.coordinates.y * node.Rx)
+            r = self.results.node(node)
+            sum_fx += r.Rx
+            sum_fy += r.Ry
+            sum_mz += (r.Rmz + node.coordinates.x * r.Ry
+                       - node.coordinates.y * r.Rx)
 
         assert sum_fx == pytest.approx(0, abs=1e-9 * 400)
         assert sum_fy == pytest.approx(0, abs=1e-9 * 400)

@@ -1,8 +1,17 @@
 from dataclasses import dataclass, field, asdict
 
 from .Coordinates import Coordinate
+from .Loads import Loads, NodalLoad
 
 from typing import Any
+
+
+# The restraints that keep the nodes of a two-dimensional model in its plane.
+PLANE_RESTRAINTS: dict[str, tuple[int, ...]] = {
+    'xy': (0, 0, 1, 1, 1, 0),
+    'yz': (1, 0, 0, 0, 1, 1),
+    'zx': (0, 1, 0, 1, 0, 1),
+}
 
 
 @dataclass(slots=True)
@@ -13,59 +22,27 @@ class Node():
         coordinates (Coordinate): The coordinate object defining the node's position.
         node_ID (int): Unique identifier for the node.
         mesh_node (bool): Indicates if this is a mesh node. Defaults to False.
-        Fx (float): Applied force in the x-direction in kips. Defaults to 0.0.
-        Fy (float): Applied force in the y-direction in kips. Defaults to 0.0.
-        Fz (float): Applied force in the z-direction in kips. Defaults to 0.0.
-        Mx (float): Applied moment about the x-axis in kip-in. Defaults to 0.0.
-        My (float): Applied moment about the y-axis in kip-in. Defaults to 0.0.
-        Mz (float): Applied moment about the z-axis in kip-in. Defaults to 0.0.
         restraint (list[int]): List of 6 integers indicating restrained degrees of freedom
             [Ux, Uy, Uz, φx, φy, φz]. Defaults to [0, 0, 0, 0, 0, 0].
         plane (str | None): The plane associated with the node. Defaults to None.
+        loads (Loads | None): The model's loads, to which ``add_load`` adds;
+            given by ``Nodes.add_node``. None for a node outside a model.
     """
     coordinates: Coordinate
     node_ID: int
     mesh_node: bool = False
-    Fx: float = 0.0
-    Fy: float = 0.0
-    Fz: float = 0.0
-    Mx: float = 0.0
-    My: float = 0.0
-    Mz: float = 0.0
-    Ux: float = 0.0
-    Uy: float = 0.0
-    Uz: float = 0.0
-    phi_x: float = 0.0
-    phi_y: float = 0.0
-    phi_z: float = 0.0
-    eFx: float = 0.0
-    eFy: float = 0.0
-    eFz: float = 0.0
-    eMx: float = 0.0
-    eMy: float = 0.0
-    eMz: float = 0.0
-    Rx: float = 0.0
-    Ry: float = 0.0
-    Rz: float = 0.0
-    Rmx: float = 0.0
-    Rmy: float = 0.0
-    Rmz: float = 0.0
     plane: str | None = None
     restraint: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0, 0])
+    loads: Loads | None = field(
+        default=None, kw_only=True, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Set default restraints based on the plane constraint.
 
         If a plane is specified, sets the appropriate out-of-plane restraints.
         """
-        if self.plane is None:
-            return
-        elif self.plane == 'xy':
-            self.restraint = [0, 0, 1, 1, 1, 0]
-        elif self.plane == 'yz':
-            self.restraint = [1, 0, 0, 0, 1, 1]
-        elif self.plane == 'zx':
-            self.restraint = [0, 1, 0, 1, 0, 1]
+        if self.plane in PLANE_RESTRAINTS:
+            self.restraint = list(PLANE_RESTRAINTS[self.plane])
 
     def properties(self) -> dict[str, Any]:
         """Return the dataclass properties as a dictionary.
@@ -106,25 +83,29 @@ class Node():
                 msg6=str("Roller in the x direction: [0,1,1,0,0,0]")
             ))
 
-    def add_load(self, mag: float, lType: str = 'moment', direction: str = 'y') -> None:
+    def add_load(self, mag: float, lType: str, direction: str) -> NodalLoad:
         """Add a load to the node.
+
+        The load is recorded in the model's loads (``Model.loads``) and
+        applied when the model is solved; see
+        :meth:`OpenSTRAN.Loads.Loads.add_nodal_load`.
 
         Args:
             mag (float): Magnitude of the load. Units are kips for forces and kip-in for moments.
-            lType (str, optional): Type of load. Either 'moment' or 'force'. Defaults to 'moment'.
-            direction (str, optional): Direction of the load. 'X', 'Y', or 'Z'. Defaults to 'y'.
+            lType (str): Type of load, 'force' or 'moment'.
+            direction (str): Direction of the load, a global axis: 'X', 'Y'
+                or 'Z'.
+
+        Returns:
+            NodalLoad: The load as recorded.
+
+        Raises:
+            RuntimeError: If the node was not added to a model with
+                ``Nodes.add_node``.
+            ValueError: If lType or direction is not one of those above.
         """
-        if lType == 'moment':
-            if direction == 'X':
-                self.Mx += mag
-            if direction == 'Y':
-                self.My += mag
-            if direction == 'Z':
-                self.Mz += mag
-        else:
-            if direction == 'X':
-                self.Fx += mag
-            if direction == 'Y':
-                self.Fy += mag
-            if direction == 'Z':
-                self.Fz += mag
+        if self.loads is None:
+            raise RuntimeError(
+                "The node belongs to no model: add nodes with "
+                "Nodes.add_node.")
+        return self.loads.add_nodal_load(self, mag, lType, direction)

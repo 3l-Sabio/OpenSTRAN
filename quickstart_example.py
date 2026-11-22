@@ -10,8 +10,9 @@ N1 = model.nodes.add_node(0, 0, 0)  # (X [in], Y [in], Z [in])
 # create a node 120 inches (10 feet) away from the origin along the global X axis.
 N2 = model.nodes.add_node(120, 0, 0)  # (X [in], Y [in], Z [in])
 
-# restrain the nodes from translation.
-N1.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
+# restrain the nodes from translation, and N1 from twisting about the beam's
+# axis, which nothing else resists.
+N1.restraint = [1, 1, 1, 1, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
 N2.restraint = [1, 1, 1, 0, 0, 0]  # [Ux, Uy, Uz, φx, φy, φz] -> pinned node
 
 # define steel constants
@@ -30,14 +31,11 @@ M1.add_point_load(-10, 'Y', 35)
 # span.
 M1.add_distributed_load(-1/12, -1/12, 'Y', 25, 75)
 
-# solve the model.
-model.solve()
+# solve the model; the results are also kept as model.results.
+results = model.solve()
 
 # print the nodal reactions to the terminal.
 model.reactions()
 
-# perform post processing steps on the model
-model.max_deflection()
-
 # print the maximum deflection to the terminal.
-print(f"max deflection (Uy): {model.Uy_max}")
+print(f"max deflection (Uy): {results.Uy_max}")

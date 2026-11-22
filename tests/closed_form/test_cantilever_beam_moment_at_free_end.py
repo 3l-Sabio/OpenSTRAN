@@ -35,51 +35,50 @@ class TestCantileverBeam:
         )
         cls.N2.add_load(M, 'moment', axis)
 
-        cls.test_model.solve()
-        cls.test_model.max_deflection()
+        cls.results = cls.test_model.solve()
 
     def test_max_moment(self, M: float, axis: str):
         expected = M
         # a moment about global Z bends the beam about its major axis
         if axis == "Z":
-            assert self.test_model.Mzz_max == pytest.approx(expected)
+            assert self.results.Mzz_max == pytest.approx(expected)
         else:
-            assert self.test_model.Myy_max == pytest.approx(expected)
+            assert self.results.Myy_max == pytest.approx(expected)
 
     def test_max_shear(self):
-        assert self.test_model.Vy_max == pytest.approx(0, abs=1e-6)
-        assert self.test_model.Vz_max == pytest.approx(0, abs=1e-6)
+        assert self.results.Vy_max == pytest.approx(0, abs=1e-6)
+        assert self.results.Vz_max == pytest.approx(0, abs=1e-6)
 
     def test_max_reaction(self):
-        assert self.test_model.Ry_max == pytest.approx(0, abs=1e-6)
-        assert self.test_model.Rz_max == pytest.approx(0, abs=1e-6)
+        assert self.results.Ry_max == pytest.approx(0, abs=1e-6)
+        assert self.results.Rz_max == pytest.approx(0, abs=1e-6)
 
     def test_deflection(self, M: float, L: float, axis: str):
         if axis == "Z":
             expected = M * L ** 2 / (2 * self.E * self.shape.Ix)
-            assert self.test_model.Uy_max == pytest.approx(expected)
+            assert self.results.Uy_max == pytest.approx(expected)
         else:
             expected = M * L ** 2 / (2 * self.E * self.shape.Iy)
-            assert self.test_model.Uz_max == pytest.approx(expected)
+            assert self.results.Uz_max == pytest.approx(expected)
 
     def test_rotation(self, M: float, L: float, axis: str):
         if axis == "Z":
             expected = M * L / (self.E * self.shape.Ix)
-            assert self.N2.phi_z == pytest.approx(expected)
+            assert self.results.node(self.N2).phi_z == pytest.approx(expected)
         else:
             expected = M * L / (self.E * self.shape.Iy)
-            assert self.N2.phi_y == pytest.approx(expected)
+            assert self.results.node(self.N2).phi_y == pytest.approx(expected)
 
     def test_node_reaction_moment_1(self, M: float, axis: str):
         expected = -M
         if axis == "Z":
-            assert self.N1.Rmz == pytest.approx(expected)
+            assert self.results.node(self.N1).Rmz == pytest.approx(expected)
         else:
-            assert self.N1.Rmy == pytest.approx(expected)
+            assert self.results.node(self.N1).Rmy == pytest.approx(expected)
 
     def test_node_reaction_moment_2(self, axis: str):
         # the free end has no support, so it has no reaction
         if axis == "Z":
-            assert self.N2.Rmz == pytest.approx(0, abs=1e-6)
+            assert self.results.node(self.N2).Rmz == pytest.approx(0, abs=1e-6)
         else:
-            assert self.N2.Rmy == pytest.approx(0, abs=1e-6)
+            assert self.results.node(self.N2).Rmy == pytest.approx(0, abs=1e-6)

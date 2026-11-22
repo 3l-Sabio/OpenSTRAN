@@ -1,7 +1,8 @@
-import numpy as np
-
+from .Loads import Loads
+from .Node import PLANE_RESTRAINTS, Node
 from .Nodes import Nodes
 from .Members import Members
+from .Results import Results
 from .Solver import Solver
 
 
@@ -19,7 +20,16 @@ class Model():
             three-dimensional.
         nodes (Nodes): Collection of nodes in the structure.
         members (Members): Collection of members (elements) in the structure.
+        loads (Loads): The loads applied to the structure, added with
+            ``loads.add_nodal_load``, ``add_point_load`` and
+            ``add_distributed_load``, or with ``Node.add_load``,
+            ``Member.add_point_load`` and ``Member.add_distributed_load``,
+            which call them; removed with ``loads.clear()``.
         solver (Solver): Solver instance for performing structural analysis.
+            Its attributes describe the last analysis it ran, which may have
+            failed; ``results`` holds the results.
+        results (Results | None): Results of the last successful analysis,
+            or None before the first.
 
     Example:
 
@@ -38,13 +48,14 @@ class Model():
         self.nodes = Nodes(plane)
         self.members = Members(self.nodes)
         self.solver = Solver()
+        self.results: Results | None = None
 
     def solve(
         self,
         second_order: bool = False,
         tolerance: float = 1e-8,
         max_iterations: int = 50
-    ) -> None:
+    ) -> Results:
         """Solve the structural system and compute reactions and member forces.
 
         This method performs a complete finite element analysis including:
@@ -60,9 +71,9 @@ class Model():
         axial forces until the unbalanced load is below ``tolerance`` times
         the applied loads. Equilibrium is formulated on the undeformed
         geometry. The bowing of a member between its ends (P-delta) is
-        captured only if the member is meshed into several submembers. If
-        the analysis fails or is interrupted, the model is left holding the
-        first-order solution.
+        captured only if the member is meshed into several submembers. An
+        analysis that fails or is interrupted raises, and the model keeps
+        the results of its previous analysis, if any.
 
         Args:
             second_order (bool, optional): Run a second-order (P-Delta)
@@ -74,6 +85,9 @@ class Model():
             max_iterations (int, optional): Maximum number of iterations of a
                 second-order analysis. Defaults to 50.
 
+        Returns:
+            Results: The results of the analysis, also kept as ``results``.
+
         Raises:
             RuntimeError: If a second-order analysis does not converge, or the
                 loads are most likely at or above the second-order limit load.
@@ -81,15 +95,18 @@ class Model():
                 stiffness is singular.
         """
         self._prepare()
-        try:
-            self.solver.solve(
-                self.nodes, self.members, second_order=second_order,
-                tolerance=tolerance, max_iterations=max_iterations)
-        finally:
-            # A failed second-order analysis leaves the first-order solution;
-            # a failed first-order analysis leaves no results.
-            if self.solver.has_results:
-                self._find_maxima()
+        results = self.solver.solve(
+            self.nodes, self.members, self.loads,
+            second_order=second_order,
+            tolerance=tolerance, max_iterations=max_iterations)
+        self.results = results
+        return results
+
+    @property
+    def loads(self) -> Loads:
+        """The loads applied to the structure, the same object as
+        ``nodes.loads``, to which the nodes and members add their loads."""
+        return self.nodes.loads
 
     def critical_load_factor(self) -> float:
         """Elastic critical load factor of the applied loads.
@@ -97,8 +114,8 @@ class Model():
         Returns the smallest positive factor lambda for which lambda times the
         applied loads is an elastic critical (buckling) load, from the
         eigenproblem ``[Ke + lambda Kg] {d} = 0`` with the geometric
-        stiffness Kg formed from the first-order axial forces. The model is
-        left holding the first-order solution under the applied loads.
+        stiffness Kg formed from the first-order axial forces. The results of
+        the model (``results``) are left as they were.
 
         Returns:
             float: The elastic critical load factor.
@@ -109,20 +126,11 @@ class Model():
                 twisting, or if the elastic stiffness is singular.
         """
         self._prepare()
-        try:
-            return self.solver.critical_load_factor(self.nodes, self.members)
-        finally:
-            # The model holds the first-order solution, unless that failed.
-            if self.solver.has_results:
-                self._find_maxima()
-
-    def _find_maxima(self) -> None:
-        """Update the maximum reactions and member forces."""
-        self.maxReactions()
-        self.maxMbrForces()
+        return self.solver.critical_load_factor(
+            self.nodes, self.members, self.loads)
 
     def _prepare(self) -> None:
-        """Mesh each member and apply its deferred loads.
+        """Mesh each member.
 
         Meshing is deferred to this point so that nodes created by loads are
         included in the member mesh.
@@ -130,241 +138,48 @@ class Model():
         for member in self.members.members.values():
             member.prepare()
 
-    def maxReactions(self) -> None:
-        """Calculate maximum reaction forces and moments at restrained nodes.
+    def _require_results(self) -> Results:
+        """The results of the last analysis.
 
-        Computes the maximum absolute values of reaction forces and moments
-        across all support nodes in the structure.
-
-        Sets the following instance attributes:
-
-        * Rx_max: Maximum X-direction reaction force
-        * Ry_max: Maximum Y-direction reaction force
-        * Rz_max: Maximum Z-direction reaction force
-        * Rmx_max: Maximum X-direction reaction moment
-        * Rmy_max: Maximum Y-direction reaction moment
-        * Rmz_max: Maximum Z-direction reaction moment
+        Raises:
+            RuntimeError: If the model has not been solved.
         """
-        Rx: list[float] = []
-        Ry: list[float] = []
-        Rz: list[float] = []
-        Rmx: list[float] = []
-        Rmy: list[float] = []
-        Rmz: list[float] = []
-
-        for node in self.nodes.nodes.values():
-            if node.mesh_node == False:
-                Rx.append(node.Rx)
-                Ry.append(node.Ry)
-                Rz.append(node.Rz)
-                Rmx.append(node.Rmx)
-                Rmy.append(node.Rmy)
-                Rmz.append(node.Rmz)
-
-        self.Rx_max = abs(max(Rx, key=lambda x: abs(x)))
-        self.Ry_max = abs(max(Ry, key=lambda x: abs(x)))
-        self.Rz_max = abs(max(Rz, key=lambda x: abs(x)))
-        self.Rmx_max = abs(max(Rmx, key=lambda x: abs(x)))
-        self.Rmy_max = abs(max(Rmy, key=lambda x: abs(x)))
-        self.Rmz_max = abs(max(Rmz, key=lambda x: abs(x)))
-
-    def maxMbrForces(self) -> None:
-        """Calculate maximum member forces and identify local extrema.
-
-        Computes the maximum values for all member internal forces (axial, shear,
-        torsion, and bending moments) and identifies their local maxima and minima
-        distributions along members.
-
-        Sets the following instance attributes:
-
-        * axial_max, axial_maxima, axial_minima: Axial force results
-        * torque_max, torque_maxima, torque_minima: Torsional moment results
-        * Vy_max, Vy_maxima, Vy_minima: Y-direction shear force results
-        * Vz_max, Vz_maxima, Vz_minima: Z-direction shear force results
-        * Mzz_max, Mzz_maxima, Mzz_minima: Major axis bending moment results
-        * Myy_max, Myy_maxima, Myy_minima: Minor axis bending moment results
-        """
-        axial: list[float] = []
-        torque: list[float] = []
-        Vy: list[float] = []
-        Vz: list[float] = []
-        Mzz: list[float] = []
-        Myy: list[float] = []
-
-        for mbr in self.members.members.values():
-            for submbr in mbr.submembers.values():
-                axial.append(submbr.results['axial'][0])
-                axial.append(submbr.results['axial'][1]*-1)
-                torque.append(submbr.results['torsional moments'][0])
-                torque.append(submbr.results['torsional moments'][1]*-1)
-                Vy.append(submbr.results['shear'][0])
-                Vy.append(submbr.results['shear'][1]*-1)
-                Vz.append(submbr.results['transverse shear'][0])
-                Vz.append(submbr.results['transverse shear'][1]*-1)
-                Mzz.append(submbr.results['major axis moments'][0])
-                Mzz.append(submbr.results['major axis moments'][1]*-1)
-                Myy.append(submbr.results['minor axis moments'][0])
-                Myy.append(submbr.results['minor axis moments'][1]*-1)
-
-        self.axial_max = abs(max(axial, key=lambda x: abs(x)))
-        self.axial_maxima = self.localMaxima(axial)
-        self.axial_minima = self.localMinima(axial)
-
-        self.torque_max = abs(max(torque, key=lambda x: abs(x)))
-        self.torque_maxima = self.localMaxima(torque)
-        self.torque_minima = self.localMinima(torque)
-
-        self.Vy_max = abs(max(Vy, key=lambda x: abs(x)))
-        self.Vy_maxima = self.localMaxima(Vy)
-        self.Vy_minima = self.localMinima(Vy)
-
-        self.Vz_max = abs(max(Vz, key=lambda x: abs(x)))
-        self.Vz_maxima = self.localMaxima(Vz)
-        self.Vz_minima = self.localMinima(Vz)
-
-        self.Mzz_max = abs(max(Mzz, key=lambda x: abs(x)))
-        self.Mzz_maxima = self.localMaxima(Mzz)
-        self.Mzz_minima = self.localMinima(Mzz)
-
-        self.Myy_max = abs(max(Myy, key=lambda x: abs(x)))
-        self.Myy_maxima = self.localMaxima(Myy)
-        self.Myy_minima = self.localMinima(Myy)
-
-        # Override the peak magnitudes with exact closed-form extrema so that
-        # peaks occurring between mesh nodes (e.g. under distributed loads) are
-        # captured rather than only the values sampled at the nodes.
-        axial_ext: list[float] = []
-        torque_ext: list[float] = []
-        Vy_ext: list[float] = []
-        Vz_ext: list[float] = []
-        Mzz_ext: list[float] = []
-        Myy_ext: list[float] = []
-        for mbr in self.members.members.values():
-            for submbr in mbr.submembers.values():
-                extrema = submbr.force_extrema()
-                axial_ext += list(extrema['axial'])
-                torque_ext += list(extrema['torsional moments'])
-                Vy_ext += list(extrema['shear'])
-                Vz_ext += list(extrema['transverse shear'])
-                Mzz_ext += list(extrema['major axis moments'])
-                Myy_ext += list(extrema['minor axis moments'])
-
-        self.axial_max = abs(max(axial_ext, key=lambda x: abs(x)))
-        self.torque_max = abs(max(torque_ext, key=lambda x: abs(x)))
-        self.Vy_max = abs(max(Vy_ext, key=lambda x: abs(x)))
-        self.Vz_max = abs(max(Vz_ext, key=lambda x: abs(x)))
-        self.Mzz_max = abs(max(Mzz_ext, key=lambda x: abs(x)))
-        self.Myy_max = abs(max(Myy_ext, key=lambda x: abs(x)))
-
-    def localMaxima(self, forces: list[float]) -> list[bool]:
-        """Identify local maxima in a force distribution.
-
-        Determines which points in the force distribution represent local maxima
-        by comparing adjacent values, accounting for numerical precision with
-        near-equal comparisons.
-
-        Args:
-            forces (list[float]): List of force values along a member or structure.
-
-        Returns:
-            list[bool]: Boolean list indicating local maxima positions.
-        """
-        maxima = [False for _ in forces]
-        length = len(forces)-1
-        for i, force in enumerate(forces):
-            if i == 0:
-                if force > 0:
-                    maxima[i] = True
-            if i % 2 == 0 or i == 1:
-                continue
-            elif i == length:
-                if force > 0:
-                    maxima[i] = True
-            else:
-                if forces[i-2] > force:
-                    continue
-                if np.isclose(forces[i-2], force) and np.isclose(forces[i+2], force):
-                    continue
-                if np.isclose(forces[i-2], force) and forces[i+2] < force:
-                    maxima[i] = True
-                    continue
-                if forces[i-2] < force and forces[i+2] < force:
-                    maxima[i] = True
-                    continue
-                if forces[i-2] < force and np.isclose(forces[i+2], force):
-                    maxima[i] = True
-                    continue
-        return (maxima)
-
-    def localMinima(self, forces: list[float]) -> list[bool]:
-        """Identify local minima in a force distribution.
-
-        Determines which points in the force distribution represent local minima
-        by comparing adjacent values, accounting for numerical precision with
-        near-equal comparisons.
-
-        Args:
-            forces (list[float]): List of force values along a member or structure.
-
-        Returns:
-            list[bool]: Boolean list indicating local minima positions.
-        """
-        minima = [False for _ in forces]
-        length = len(forces)-1
-        for i, force in enumerate(forces):
-            if i == 0:
-                if force < 0:
-                    minima[i] = True
-            if i % 2 == 0 or i == 1:
-                continue
-            elif i == length:
-                if force < 0:
-                    minima[i] = True
-            else:
-                if forces[i-2] < force:
-                    continue
-                if np.isclose(forces[i-2], force) and np.isclose(forces[i+2], force):
-                    continue
-                if np.isclose(forces[i-2], force) and forces[i+2] > force:
-                    minima[i] = True
-                    continue
-                if forces[i-2] > force and np.isclose(forces[i+2], force):
-                    minima[i] = True
-                    continue
-                if forces[i-2] > force and forces[i+2] > force:
-                    minima[i] = True
-                    continue
-        return (minima)
+        if self.results is None:
+            raise RuntimeError(
+                "The model has no results: call solve() first.")
+        return self.results
 
     def reactions(self) -> None:
-        """Print nodal reactions to console.
+        """Print the nodal reactions of the last analysis to the console.
 
-        Displays all reaction forces (Rx, Ry, Rz) and reaction moments (Mx, My, Mz)
-        at all restrained support nodes in a formatted table.
+        Displays the reaction forces (Rx, Ry, Rz) and reaction moments (Mx,
+        My, Mz) of every node the user added, and of every mesh node with a
+        support (a restraint other than those that keep the nodes of a
+        two-dimensional model in its plane), for example one placed on the
+        node a point load created.
+
+        Raises:
+            RuntimeError: If the model has not been solved.
         """
+        results = self._require_results()
+
         def tidy(value: float) -> float:
             # Round first so a tiny negative value does not print as "-0.00".
             return round(value, 2) + 0.0
 
-        print('Nodal Reactions')
-        for node in self.nodes.nodes.values():
-            if node.mesh_node is not True:
-                print(f'\tNode {node.node_ID}:')
-                print(f'\t\tRx = {tidy(node.Rx):.2f} kips')
-                print(f'\t\tRy = {tidy(node.Ry):.2f} kips')
-                print(f'\t\tRz = {tidy(node.Rz):.2f} kips')
-                print(f'\t\tMx = {tidy(node.Rmx):.2f} kip-in')
-                print(f'\t\tMy = {tidy(node.Rmy):.2f} kip-in')
-                print(f'\t\tMz = {tidy(node.Rmz):.2f} kip-in')
+        def supported(node: Node) -> bool:
+            in_plane = PLANE_RESTRAINTS.get(
+                node.plane or '', (0, 0, 0, 0, 0, 0))
+            return any(r and not p for r, p in zip(node.restraint, in_plane))
 
-    def max_deflection(self) -> None:
-        Ux: list[float] = []
-        Uy: list[float] = []
-        Uz: list[float] = []
-        for node in self.nodes.nodes.values():
-            Ux.append(node.Ux)
-            Uy.append(node.Uy)
-            Uz.append(node.Uz)
-        self.Ux_max = abs(max(Ux, key=lambda x: abs(x)))
-        self.Uy_max = abs(max(Uy, key=lambda x: abs(x)))
-        self.Uz_max = abs(max(Uz, key=lambda x: abs(x)))
+        print('Nodal Reactions')
+        for node in results.nodes:
+            if not node.mesh_node or supported(node):
+                r = results.node(node)
+                print(f'\tNode {node.node_ID}:')
+                print(f'\t\tRx = {tidy(r.Rx):.2f} kips')
+                print(f'\t\tRy = {tidy(r.Ry):.2f} kips')
+                print(f'\t\tRz = {tidy(r.Rz):.2f} kips')
+                print(f'\t\tMx = {tidy(r.Rmx):.2f} kip-in')
+                print(f'\t\tMy = {tidy(r.Rmy):.2f} kip-in')
+                print(f'\t\tMz = {tidy(r.Rmz):.2f} kip-in')

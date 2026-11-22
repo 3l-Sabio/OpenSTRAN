@@ -29,31 +29,30 @@ class TestSimpleBeam:
 
         cls.M1.add_distributed_load(w, w, direction, 0, 100)
 
-        cls.test_model.solve()
-        cls.test_model.max_deflection()
+        cls.results = cls.test_model.solve()
 
     def test_max_axial(self, w: float, L: float):
         expected = w * L
-        assert self.test_model.axial_max == pytest.approx(expected)
+        assert self.results.axial_max == pytest.approx(expected)
 
     def test_max_reaction(self, w: float, L: float):
         expected = w * L
-        assert self.test_model.Rx_max == pytest.approx(expected)
+        assert self.results.Rx_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, L: float):
         # elongation at the roller end
         expected = w * L ** 2 / (2 * self.E * self.shape.A)
-        assert self.test_model.Ux_max == pytest.approx(expected, rel=1e-3)
+        assert self.results.Ux_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float):
         expected = -w * L  # the support pushes back against the load
-        assert self.N1.Rx == pytest.approx(expected)
+        assert self.results.node(self.N1).Rx == pytest.approx(expected)
 
     def test_node_reaction_2(self):
         # the roller cannot resist load along the member
-        assert self.N2.Rx == pytest.approx(0, abs=1e-6)
+        assert self.results.node(self.N2).Rx == pytest.approx(0, abs=1e-6)
 
     def test_no_bending(self):
         # an axial load on a straight member causes no shear or moment
-        assert self.test_model.Vy_max == pytest.approx(0, abs=1e-6)
-        assert self.test_model.Mzz_max == pytest.approx(0, abs=1e-6)
+        assert self.results.Vy_max == pytest.approx(0, abs=1e-6)
+        assert self.results.Mzz_max == pytest.approx(0, abs=1e-6)

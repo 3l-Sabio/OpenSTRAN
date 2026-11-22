@@ -38,27 +38,26 @@ class TestInclinedBeam:
 
         cls.M1.add_distributed_load(-w, -w, "Y", 0, 100)
 
-        cls.test_model.solve()
-        cls.test_model.max_deflection()
+        cls.results = cls.test_model.solve()
 
     def test_max_moment(self, w: float, run: float, rise: float):
         length = hypot(run, rise)
         expected = w * length * run / 8
-        assert self.test_model.Mzz_max == pytest.approx(expected)
+        assert self.results.Mzz_max == pytest.approx(expected)
 
     def test_max_shear(self, w: float, run: float, rise: float):
         length = hypot(run, rise)
         expected = w * length / 2 * (run / length)
-        assert self.test_model.Vy_max == pytest.approx(expected)
+        assert self.results.Vy_max == pytest.approx(expected)
 
     def test_max_axial(self, w: float, run: float, rise: float):
         length = hypot(run, rise)
         expected = w * length / 2 * (rise / length)
-        assert self.test_model.axial_max == pytest.approx(expected)
+        assert self.results.axial_max == pytest.approx(expected)
 
     def test_max_reaction(self, w: float, run: float, rise: float):
         expected = w * hypot(run, rise) / 2
-        assert self.test_model.Ry_max == pytest.approx(expected)
+        assert self.results.Ry_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, run: float, rise: float):
         length = hypot(run, rise)
@@ -70,16 +69,16 @@ class TestInclinedBeam:
         bending = 5 * (w * cos) * length ** 4 / (384 * self.E * self.shape.Ix)
         axial = (w * sin) * length ** 2 / (8 * self.E * self.shape.A)
         expected = bending * cos + axial * sin
-        assert self.test_model.Uy_max == pytest.approx(expected, rel=1e-3)
+        assert self.results.Uy_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, run: float, rise: float):
         expected = w * hypot(run, rise) / 2
-        assert self.N1.Ry == pytest.approx(expected)
+        assert self.results.node(self.N1).Ry == pytest.approx(expected)
 
     def test_node_reaction_2(self, w: float, run: float, rise: float):
         expected = w * hypot(run, rise) / 2
-        assert self.N2.Ry == pytest.approx(expected)
+        assert self.results.node(self.N2).Ry == pytest.approx(expected)
 
     def test_no_horizontal_reaction(self):
         # a vertical load on a pin and roller produces no horizontal reaction
-        assert self.N1.Rx == pytest.approx(0, abs=1e-6)
+        assert self.results.node(self.N1).Rx == pytest.approx(0, abs=1e-6)

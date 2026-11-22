@@ -31,29 +31,28 @@ class TestBeamFixedAtOneEndSupportedAtOther:
 
         cls.M1.add_distributed_load(-w, -w, axis, 0, 100)
 
-        cls.test_model.solve()
-        cls.test_model.max_deflection()
+        cls.results = cls.test_model.solve()
 
     def test_max_moment(self, w: float, L: float, axis: str):
         expected = w * L ** 2 / 8
         if axis == "Y":
-            assert self.test_model.Mzz_max == pytest.approx(expected)
+            assert self.results.Mzz_max == pytest.approx(expected)
         else:
-            assert self.test_model.Myy_max == pytest.approx(expected)
+            assert self.results.Myy_max == pytest.approx(expected)
 
     def test_max_shear(self, w: float, L: float, axis: str):
         expected = 5 * w * L / 8
         if axis == "Y":
-            assert self.test_model.Vy_max == pytest.approx(expected)
+            assert self.results.Vy_max == pytest.approx(expected)
         else:
-            assert self.test_model.Vz_max == pytest.approx(expected)
+            assert self.results.Vz_max == pytest.approx(expected)
 
     def test_max_reaction(self, w: float, L: float, axis: str):
         expected = 5 * w * L / 8
         if axis == "Y":
-            assert self.test_model.Ry_max == pytest.approx(expected)
+            assert self.results.Ry_max == pytest.approx(expected)
         else:
-            assert self.test_model.Rz_max == pytest.approx(expected)
+            assert self.results.Rz_max == pytest.approx(expected)
 
     def test_max_deflection(self, w: float, L: float, axis: str):
         # location of max deflection from the supported end, x/L
@@ -61,34 +60,34 @@ class TestBeamFixedAtOneEndSupportedAtOther:
         c = (xi - 3 * xi**3 + 2 * xi**4) / 48
         if axis == "Y":
             expected = c * w * L ** 4 / (self.E * self.shape.Ix)
-            assert self.test_model.Uy_max == pytest.approx(expected, rel=1e-3)
+            assert self.results.Uy_max == pytest.approx(expected, rel=1e-3)
         else:
             expected = c * w * L ** 4 / (self.E * self.shape.Iy)
-            assert self.test_model.Uz_max == pytest.approx(expected, rel=1e-3)
+            assert self.results.Uz_max == pytest.approx(expected, rel=1e-3)
 
     def test_node_reaction_1(self, w: float, L: float, axis: str):
         expected = 5 * w * L / 8
         if axis == "Y":
-            assert self.N1.Ry == pytest.approx(expected)
+            assert self.results.node(self.N1).Ry == pytest.approx(expected)
         else:
-            assert self.N1.Rz == pytest.approx(expected)
+            assert self.results.node(self.N1).Rz == pytest.approx(expected)
 
     def test_node_reaction_2(self, w: float, L: float, axis: str):
         expected = 3 * w * L / 8
         if axis == "Y":
-            assert self.N2.Ry == pytest.approx(expected)
+            assert self.results.node(self.N2).Ry == pytest.approx(expected)
         else:
-            assert self.N2.Rz == pytest.approx(expected)
+            assert self.results.node(self.N2).Rz == pytest.approx(expected)
 
     def test_node_reaction_moment_1(self, w: float, L: float, axis: str):
         expected = w * L ** 2 / 8
         if axis == "Y":
-            assert self.N1.Rmz == pytest.approx(expected)
+            assert self.results.node(self.N1).Rmz == pytest.approx(expected)
         else:
-            assert self.N1.Rmy == pytest.approx(-expected)
+            assert self.results.node(self.N1).Rmy == pytest.approx(-expected)
 
     def test_node_reaction_moment_2(self, axis: str):
         if axis == "Y":
-            assert self.N2.Rmz == pytest.approx(0, abs=1e-6)
+            assert self.results.node(self.N2).Rmz == pytest.approx(0, abs=1e-6)
         else:
-            assert self.N2.Rmy == pytest.approx(0, abs=1e-6)
+            assert self.results.node(self.N2).Rmy == pytest.approx(0, abs=1e-6)

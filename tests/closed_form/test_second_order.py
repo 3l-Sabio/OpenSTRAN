@@ -65,11 +65,11 @@ def test_cantilever_tip_deflection_and_base_moment(ratio: float, compression: bo
         moment = H * math.tanh(k * L) / k
 
     model, base, tip = cantilever(-P if compression else P, H)
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    assert tip.Ux == pytest.approx(deflection, rel=RTOL)
+    assert results.node(tip).Ux == pytest.approx(deflection, rel=RTOL)
     # The base reaction moment balances H L plus the P-Delta moment.
-    assert base.Rmz == pytest.approx(moment, rel=RTOL)
+    assert results.node(base).Rmz == pytest.approx(moment, rel=RTOL)
 
 
 def pinned_beam_column(P: float, w: float, mesh: int):
@@ -102,10 +102,11 @@ def test_beam_column_maximum_moment(ratio: float):
     exact = w / k**2 * (1 / math.cos(k * l / 2) - 1)
 
     model, member = pinned_beam_column(P, w, mesh=9)
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    assert model.Mzz_max == pytest.approx(exact, rel=1e-4)
-    assert abs(member.moment(50)) == pytest.approx(exact, rel=1e-4)
+    assert results.Mzz_max == pytest.approx(exact, rel=1e-4)
+    assert abs(results.member(member).moment(50)) == pytest.approx(
+        exact, rel=1e-4)
 
 
 def test_in_span_moments_match_the_end_moments():
@@ -115,12 +116,12 @@ def test_in_span_moments_match_the_end_moments():
     # continuous across mesh nodes and equals the recovered end moments.
     model, member = pinned_beam_column(0.6 * math.pi**2 * E * I / (2 * L)**2,
                                        0.05, mesh=3)
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    for submember in member.submembers.values():
-        ends = submember.results['major axis moments']
-        assert submember.moment_major(0.0) == pytest.approx(ends[0], abs=1e-9)
-        assert submember.moment_major(submember.length) == pytest.approx(
+    for sub in results.member(member).submembers:
+        ends = sub.forces['major axis moments']
+        assert sub.moment(0.0) == pytest.approx(ends[0], abs=1e-9)
+        assert sub.moment(sub.submember.length) == pytest.approx(
             -ends[1], abs=1e-9)
 
 
@@ -136,17 +137,17 @@ def test_in_span_moments_match_the_end_moments_about_both_axes():
     tip.add_load(1.0, 'force', 'X')
     tip.add_load(0.5, 'force', 'Z')
     tip.add_load(-30.0, 'force', 'Y')
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    for submember in member.submembers.values():
-        l = submember.length
-        major = submember.results['major axis moments']
-        minor = submember.results['minor axis moments']
-        assert submember.moment_major(l) == pytest.approx(-major[1], abs=1e-9)
-        assert submember.moment_minor(l) == pytest.approx(-minor[1], abs=1e-9)
+    for sub in results.member(member).submembers:
+        l = sub.submember.length
+        major = sub.forces['major axis moments']
+        minor = sub.forces['minor axis moments']
+        assert sub.moment(l) == pytest.approx(-major[1], abs=1e-9)
+        assert sub.moment(l, 'minor') == pytest.approx(-minor[1], abs=1e-9)
         # The P-delta term is not negligible here.
-        assert abs(submember._p_delta_moment(l, 'major')) > 1.0
-        assert abs(submember._p_delta_moment(l, 'minor')) > 1.0
+        assert abs(sub._p_delta_moment(l, 'major')) > 1.0
+        assert abs(sub._p_delta_moment(l, 'minor')) > 1.0
 
 
 @pytest.mark.parametrize("mesh", [1, 3])
@@ -165,25 +166,26 @@ def test_moment_extrema_with_an_asymmetric_load(mesh: int):
         a, b, E=E, A=A, Ixx=I, Iyy=I / 10, G=11200.0, J=1.0, mesh=mesh)
     member.add_distributed_load(0.0, -0.1, 'Y', 0, 100)
     b.add_load(-0.6 * math.pi**2 * E * I / (2 * L)**2, 'force', 'X')
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    for submember in member.submembers.values():
-        x = np.linspace(0.0, submember.length, 20001)
-        sampled = np.array([submember.moment_major(xi) for xi in x])
-        largest, smallest = submember.force_extrema()['major axis moments']
+    for sub in results.member(member).submembers:
+        x = np.linspace(0.0, sub.submember.length, 20001)
+        sampled = np.array([sub.moment(xi) for xi in x])
+        largest, smallest = sub.force_extrema()['major axis moments']
         scale = float(np.abs(sampled).max())
         assert largest == pytest.approx(sampled.max(), abs=1e-7 * scale)
         assert smallest == pytest.approx(sampled.min(), abs=1e-7 * scale)
 
 
 def test_without_axial_load_second_order_equals_first_order():
-    first, _, tip_first = cantilever(0.0, 1.0)
-    first.solve()
-    second, _, tip_second = cantilever(0.0, 1.0)
-    second.solve(second_order=True)
+    first_model, _, tip_first = cantilever(0.0, 1.0)
+    first = first_model.solve()
+    second_model, _, tip_second = cantilever(0.0, 1.0)
+    second = second_model.solve(second_order=True)
 
-    assert tip_second.Ux == pytest.approx(tip_first.Ux, rel=1e-12)
-    assert second.solver.iterations == 1
+    assert second.node(tip_second).Ux == pytest.approx(
+        first.node(tip_first).Ux, rel=1e-12)
+    assert second.iterations == 1
 
 
 def test_cantilever_critical_load():
@@ -279,34 +281,28 @@ def test_fine_mesh_converges_near_the_critical_load(mesh: int, rtol: float):
     P = 0.9 * P_CR
     k = math.sqrt(P / (E * I))
     model, _, tip = cantilever(-P, 1.0, mesh=mesh)
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    assert model.solver.iterations == 2
-    assert tip.Ux == pytest.approx((math.tan(k * L) - k * L) / (P * k),
-                                   rel=rtol)
+    assert results.iterations == 2
+    assert results.node(tip).Ux == pytest.approx(
+        (math.tan(k * L) - k * L) / (P * k), rel=rtol)
 
 
 @pytest.mark.parametrize("ratio, max_iterations, message", [
     (1.2, 50, "limit load"),      # fails before the displacements change
     (0.4, 1, "did not converge"),  # fails after one iteration
 ])
-def test_failed_analysis_leaves_the_first_order_solution(
+def test_failed_analysis_leaves_the_previous_results(
         ratio: float, max_iterations: int, message: str):
-    # A failed analysis leaves the model holding the first-order solution,
-    # with its maxima, rather than a mixture of iterations.
-    first, _, tip_first = cantilever(-ratio * P_CR, 1.0)
-    first.solve()
+    # A failed analysis raises and leaves the model with the results of the
+    # analysis before it, rather than a mixture of iterations.
+    model, _, _ = cantilever(-ratio * P_CR, 1.0)
+    first = model.solve()
 
-    model, _, tip = cantilever(-ratio * P_CR, 1.0)
     with pytest.raises(RuntimeError, match=message):
         model.solve(second_order=True, max_iterations=max_iterations)
 
-    assert tip.Ux == pytest.approx(tip_first.Ux, rel=1e-12)
-    assert model.Mzz_max == pytest.approx(first.Mzz_max, rel=1e-12)
-    assert model.solver.iterations == 0
-    member = next(iter(model.members.members.values()))
-    for submember in member.submembers.values():
-        assert submember.second_order_axial == 0.0
+    assert model.results is first
 
 
 @pytest.mark.parametrize("P", [1e-10, 1.0, 1e6])
@@ -474,9 +470,9 @@ def test_axial_force_changes_torsional_stiffness(P: float):
         a, b, E=E, A=A, Ixx=Ixx, Iyy=Iyy, G=G, J=J, mesh=4)
     b.add_load(T, 'moment', 'X')
     b.add_load(P, 'force', 'X')
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    assert b.phi_x == pytest.approx(
+    assert results.node(b).phi_x == pytest.approx(
         T * L / (G * J + P * (Ixx + Iyy) / A), rel=1e-9)
 
 
@@ -513,15 +509,12 @@ def test_short_submember_converges_to_the_fixed_point(gap: float):
     top.add_load(1.0, 'force', 'X')
     top.add_load(0.5, 'force', 'Z')
     beam.add_point_load(-1.0, 'Y', gap / 240 * 100)
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    submembers = [
-        submember
-        for member in model.members.members.values()
-        for submember in member.submembers.values()
-    ]
+    submembers = [sub for member in results.members
+                  for sub in member.submembers]
     used = np.array([s.second_order_axial for s in submembers])
-    carried = np.array([float(s.results['axial'][1]) for s in submembers])
+    carried = np.array([s.forces['axial'][1] for s in submembers])
     assert carried == pytest.approx(used, rel=0, abs=1e-8 * np.abs(used).max())
     assert model.critical_load_factor() > 1.0
 
@@ -549,12 +542,12 @@ def test_bar_released_at_both_ends_stays_straight():
         i_release=bar, j_release=bar)
     b.add_load(-100.0, 'force', 'Y')
     b.add_load(1.0, 'force', 'X')
-    model.solve(second_order=True)
+    results = model.solve(second_order=True)
 
-    assert 100.0 * b.Ux > 1.0  # N times the sway, in kip-inches
+    assert 100.0 * results.node(b).Ux > 1.0  # N times the sway, in kip-in
     for x in [10, 21.1, 50, 78.9, 90]:
-        assert bc.moment(x) == pytest.approx(0.0, abs=1e-9)
-    assert model.Mzz_max == pytest.approx(0.0, abs=1e-9)
+        assert results.member(bc).moment(x) == pytest.approx(0.0, abs=1e-9)
+    assert results.Mzz_max == pytest.approx(0.0, abs=1e-9)
 
 
 def test_in_span_moments_next_to_a_release_match_a_support():
@@ -575,8 +568,8 @@ def test_in_span_moments_next_to_a_release_match_a_support():
             mesh=3, i_release=[0, 0, 0, 0, 0, 1 if release else 0])
         column.add_point_load(1.0, 'X', 40)
         top.add_load(-0.5 * 4 * P_CR, 'force', 'Y')
-        model.solve(second_order=True)
-        moments.append(np.array([column.moment(x)
+        results = model.solve(second_order=True)
+        moments.append(np.array([results.member(column).moment(x)
                                  for x in [5, 10, 20, 30, 50, 80]]))
 
     assert moments[1] == pytest.approx(
@@ -626,31 +619,29 @@ def test_failed_first_order_solve_keeps_its_error(
         getattr(model, call)()
 
 
-def test_any_error_after_the_first_order_solution_updates_the_maxima(
+def test_any_error_during_the_iteration_leaves_the_previous_results(
         monkeypatch: pytest.MonkeyPatch):
-    # Whether the model holds results does not depend on the type of the
-    # error: a LinAlgError raised during the iteration also leaves the
-    # first-order solution, with its maxima.
-    first, _, _ = cantilever(-0.4 * P_CR, 1.0)
-    first.solve()
+    # Whether the model keeps its results does not depend on the type of
+    # the error: a LinAlgError raised during the iteration leaves them too.
+    model, _, _ = cantilever(-0.4 * P_CR, 1.0)
+    first = model.solve()
 
     def fail(self: Solver, *args: object) -> None:
         raise np.linalg.LinAlgError("second-order failure")
     monkeypatch.setattr(Solver, "_second_order", fail)
-    model, _, _ = cantilever(-0.4 * P_CR, 1.0)
 
     with pytest.raises(np.linalg.LinAlgError):
         model.solve(second_order=True)
-    assert model.Mzz_max == pytest.approx(first.Mzz_max, rel=1e-12)
+    assert model.results is first
 
 
-def test_interrupted_analysis_leaves_the_first_order_solution(
+def test_interrupted_analysis_leaves_the_previous_results(
         monkeypatch: pytest.MonkeyPatch):
     # Ctrl-C raises KeyboardInterrupt, which is not an Exception. An
     # analysis interrupted in its second iteration, after the first changed
-    # the displacements, still leaves the first-order solution.
-    first, _, tip_first = cantilever(-0.4 * P_CR, 1.0)
-    first.solve()
+    # the displacements, still leaves the results of the analysis before it.
+    model, _, _ = cantilever(-0.4 * P_CR, 1.0)
+    first = model.solve()
 
     tangent_stiffness = SubMember.tangent_stiffness
     calls: list[float] = []
@@ -661,14 +652,8 @@ def test_interrupted_analysis_leaves_the_first_order_solution(
             raise KeyboardInterrupt
         return tangent_stiffness(self, Fx2)
     monkeypatch.setattr(SubMember, "tangent_stiffness", interrupt)
-    model, _, tip = cantilever(-0.4 * P_CR, 1.0)
 
     with pytest.raises(KeyboardInterrupt):
         model.solve(second_order=True)
     assert len(calls) == MESH + 1
-    assert tip.Ux == pytest.approx(tip_first.Ux, rel=1e-12)
-    assert model.Mzz_max == pytest.approx(first.Mzz_max, rel=1e-12)
-    assert model.solver.iterations == 0
-    member = next(iter(model.members.members.values()))
-    for submember in member.submembers.values():
-        assert submember.second_order_axial == 0.0
+    assert model.results is first

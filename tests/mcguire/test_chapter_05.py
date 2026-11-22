@@ -207,24 +207,24 @@ class TestExample5_4_SpaceTruss:
         cls.a.add_load(py, 'force', 'Y')
         cls.a.add_load(pz, 'force', 'Z')
 
-        cls.model.solve()
+        cls.results = cls.model.solve()
 
     def test_displacement_at_a(self):
-        a = self.a
+        a = self.results.node(self.a)
         np.testing.assert_allclose(
             [a.Ux, a.Uy, a.Uz], self.BOOK_DISPLACEMENT_A,
             rtol=self.RTOL, atol=self.ATOL)
 
     @pytest.mark.parametrize("name", ['b', 'c', 'd', 'e'])
     def test_reactions(self, name: str):
-        node = self.supports[name]
+        node = self.results.node(self.supports[name])
         np.testing.assert_allclose(
             [node.Rx, node.Ry, node.Rz], self.BOOK_REACTIONS[name],
             rtol=self.RTOL, atol=self.ATOL)
 
     @pytest.mark.parametrize("name", ['b', 'c', 'd', 'e'])
     def test_supports_carry_no_moment(self, name: str):
-        node = self.supports[name]
+        node = self.results.node(self.supports[name])
         np.testing.assert_allclose(
             [node.Rmx, node.Rmy, node.Rmz], 0, atol=1e-6)
 
@@ -235,7 +235,8 @@ class TestExample5_4_SpaceTruss:
         forces = np.zeros(3)
         moments = np.zeros(3)
         for node in self.supports.values():
-            r = np.array([node.Rx, node.Ry, node.Rz])
+            reaction = self.results.node(node)
+            r = np.array([reaction.Rx, reaction.Ry, reaction.Rz])
             xyz = np.array([node.coordinates.x, node.coordinates.y,
                             node.coordinates.z])
             forces += r
@@ -313,22 +314,22 @@ class TestExample5_7_FrameJointAndUniformLoad:
         cls.b.add_load(cls.Py, 'force', 'Y')
         cls.bc.add_distributed_load(-cls.W, -cls.W, 'Y', 0, 100)
 
-        cls.model.solve()
+        cls.results = cls.model.solve()
 
     def test_displacement_at_b(self):
-        b = self.b
+        b = self.results.node(self.b)
         np.testing.assert_allclose(
             [b.Ux, b.Uy, b.phi_z], self.BOOK_DISPLACEMENT_B,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions_at_a(self):
-        a = self.a
+        a = self.results.node(self.a)
         np.testing.assert_allclose(
             [a.Rx, a.Ry, a.Rmz], self.BOOK_REACTIONS_A,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions_at_c(self):
-        c = self.c
+        c = self.results.node(self.c)
         np.testing.assert_allclose(
             [c.Rx, c.Ry, c.Rmz], self.BOOK_REACTIONS_C,
             rtol=self.RTOL, atol=self.ATOL)
@@ -336,14 +337,15 @@ class TestExample5_7_FrameJointAndUniformLoad:
     def test_reactions_balance_the_loads(self):
         # Statics holds exactly, independent of the book's rounding. Moments
         # are taken about a; the uniform load's resultant acts at mid-span.
-        a, b, c = self.a, self.b, self.c
+        b, c = self.b, self.c
         xb, yb = b.coordinates.x, b.coordinates.y
         xc, yc = c.coordinates.x, c.coordinates.y
         w_total = self.W * 8000
+        ra, rc = (self.results.node(x) for x in (self.a, self.c))
 
-        sum_fx = a.Rx + c.Rx + self.Px
-        sum_fy = a.Ry + c.Ry + self.Py - w_total
-        sum_mz = (a.Rmz + c.Rmz + xc * c.Ry - yc * c.Rx
+        sum_fx = ra.Rx + rc.Rx + self.Px
+        sum_fy = ra.Ry + rc.Ry + self.Py - w_total
+        sum_mz = (ra.Rmz + rc.Rmz + xc * rc.Ry - yc * rc.Rx
                   + xb * self.Py - yb * self.Px - (xb + 4000) * w_total)
 
         assert sum_fx == pytest.approx(0, abs=1e-9 * 50)
@@ -418,10 +420,10 @@ class TestExample5_8_GridUnderVerticalLoad:
         cls.b.add_load(-cls.P, 'force', 'Y')
         cls.ab.add_distributed_load(-cls.W, -cls.W, 'Y', 0, 100)
 
-        cls.model.solve()
+        cls.results = cls.model.solve()
 
     def test_displacement_at_b(self):
-        b = self.b
+        b = self.results.node(self.b)
         np.testing.assert_allclose(
             [b.Uy, b.phi_x, -b.phi_z], self.BOOK_DISPLACEMENT_B,
             rtol=self.RTOL, atol=self.ATOL)
@@ -430,20 +432,20 @@ class TestExample5_8_GridUnderVerticalLoad:
         # Vertical loads on a grid cause no movement in its plane and no
         # in-plane reactions. A coupling error between the members' axial,
         # torsional and bending terms would show up here.
-        b = self.b
+        b = self.results.node(self.b)
         np.testing.assert_allclose([b.Ux, b.Uz, b.phi_y], 0, atol=1e-9)
         for node in (self.a, self.c):
-            np.testing.assert_allclose(
-                [node.Rx, node.Rz, node.Rmy], 0, atol=1e-9)
+            r = self.results.node(node)
+            np.testing.assert_allclose([r.Rx, r.Rz, r.Rmy], 0, atol=1e-9)
 
     def test_reactions_at_a(self):
-        a = self.a
+        a = self.results.node(self.a)
         np.testing.assert_allclose(
             [a.Ry, a.Rmx, -a.Rmz], self.BOOK_REACTIONS_A,
             rtol=self.RTOL, atol=self.ATOL)
 
     def test_reactions_at_c(self):
-        c = self.c
+        c = self.results.node(self.c)
         np.testing.assert_allclose(
             [c.Ry, c.Rmx, -c.Rmz], self.BOOK_REACTIONS_C,
             rtol=self.RTOL, atol=self.ATOL)
@@ -453,14 +455,15 @@ class TestExample5_8_GridUnderVerticalLoad:
         # are taken about a; the uniform load's resultant acts at the middle
         # of ab. A vertical force Fy at (x, 0, z) has a moment of -z * Fy
         # about X and x * Fy about Z.
-        a, b, c = self.a, self.b, self.c
+        b, c = self.b, self.c
         xb = b.coordinates.x
         xc, zc = c.coordinates.x, c.coordinates.z
         w_total = self.W * 5000
+        ra, rc = (self.results.node(x) for x in (self.a, self.c))
 
-        sum_fy = a.Ry + c.Ry - self.P - w_total
-        sum_mx = a.Rmx + c.Rmx - zc * c.Ry
-        sum_mz = (a.Rmz + c.Rmz + xc * c.Ry - xb * self.P
+        sum_fy = ra.Ry + rc.Ry - self.P - w_total
+        sum_mx = ra.Rmx + rc.Rmx - zc * rc.Ry
+        sum_mz = (ra.Rmz + rc.Rmz + xc * rc.Ry - xb * self.P
                   - 2500 * w_total)
 
         assert sum_fy == pytest.approx(0, abs=1e-9 * 20)
