@@ -35,7 +35,7 @@ python -m pip install -r requirements-dev.txt
 | File | Installs | Use it when |
 | --- | --- | --- |
 | `requirements.txt` | OpenSTRAN + numpy + scipy | You just want to *run* OpenSTRAN |
-| `requirements-dev.txt` | The above (editable) + pytest | You want to *develop* OpenSTRAN |
+| `requirements-dev.txt` | The above (editable) + pytest + pytest-benchmark | You want to *develop* OpenSTRAN |
 
 ### Adding a dependency
 
@@ -59,6 +59,21 @@ The same command runs in CI on every push and pull request via
 `.github/workflows/tests.yml`.
 
 <b>Ensure all tests pass before opening a pull request.</b>
+
+## Running benchmarks
+
+```bash
+pytest benchmarks
+```
+
+The benchmarks in `benchmarks/` time building and solving a range of models. They are not part of the normal test run. CI runs them with `--benchmark-disable`, which solves each model once and checks its answers without timing it, so a change that breaks them fails CI. If a change is meant to affect speed or memory, save a run before the change and compare against it afterwards:
+
+```bash
+pytest benchmarks --benchmark-save=baseline
+pytest benchmarks --benchmark-compare=0001 --benchmark-group-by=fullname
+```
+
+Saved runs go to `.benchmarks/`, which is not committed, so `0001` is the first run saved on your own machine. Include the before and after figures in the pull request description. The Performance page of the documentation describes the models and what is measured.
 
 ## Branching
 

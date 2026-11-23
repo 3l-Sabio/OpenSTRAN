@@ -32,6 +32,8 @@ Both of these dependencies are automatically installed by default when you run `
 
 <a href="https://openstran.readthedocs.io">Read the Docs!</a>
 
+Benchmark timings and how to run the benchmarks are on the <a href="https://openstran.readthedocs.io/en/latest/performance.html">Performance</a> page.
+
 ## Capabilities
 
 OpenSTRAN allows for the creation of simple two-dimensional frame elements and complex three-dimensional structures alike.

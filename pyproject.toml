@@ -28,6 +28,7 @@ classifiers = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
+    "pytest-benchmark>=5",
 ]
 docs = [
     "sphinx>=7.0",
